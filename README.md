@@ -1,9 +1,18 @@
-# Fabric Example Mod
+# Image2Map
 
-## Setup
+A Fabric mod that allows you to render an image onto a map. Inspired by the Bukkit plugin ImageOnMap.
 
-For setup instructions please see the [fabric wiki page](https://fabricmc.net/wiki/tutorial:setup) that relates to the IDE that you are using.
+![Some images](https://raw.githubusercontent.com/TheEssem/Image2Map/master/images.png)
 
-## License
+To render an image, just run this command like so:
+```
+/mapcreate <path to local/server image>
+```
+Image URLs will be supported soon.
 
-This template is available under the CC0 license. Feel free to learn from it and incorporate it in your own projects.
+## Build
+
+Building is simple provided you have a working JDK:
+```
+./gradlew build
+```
