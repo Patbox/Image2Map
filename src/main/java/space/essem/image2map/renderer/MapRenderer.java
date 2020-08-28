@@ -5,11 +5,7 @@ import java.awt.Graphics2D;
 import java.awt.Image;
 import java.awt.image.BufferedImage;
 import java.awt.image.DataBufferByte;
-import java.io.File;
-import java.io.IOException;
 import java.util.Arrays;
-
-import javax.imageio.ImageIO;
 
 import net.minecraft.block.MaterialColor;
 import net.minecraft.entity.player.PlayerEntity;
@@ -31,52 +27,46 @@ public class MapRenderer {
     return new double[] { color[0] * coeff, color[1] * coeff, color[2] * coeff };
   }
 
-  public static ItemStack render(File file, ServerWorld world, double x, double z, PlayerEntity player) {
+  public static ItemStack render(BufferedImage image, ServerWorld world, double x, double z, PlayerEntity player) {
     ItemStack stack = FilledMapItem.createMap(world, (int) x, (int) z, (byte) 3, false, false);
     MapState state = FilledMapItem.getMapState(stack, world);
     state.locked = true;
-    try {
-      BufferedImage image = ImageIO.read(file);
-      Image resizedImage = image.getScaledInstance(128, 128, Image.SCALE_DEFAULT);
-      BufferedImage resized = convertToBufferedImage(resizedImage);
-      int width = resized.getWidth();
-      int height = resized.getHeight();
-      int[][] pixels = convertPixelArray(resized);
-      MaterialColor[] colors = MaterialColor.COLORS;
-      Color imageColor;
-      colors = Arrays.stream(colors).filter(s -> s != null).toArray(MaterialColor[]::new);
+    Image resizedImage = image.getScaledInstance(128, 128, Image.SCALE_DEFAULT);
+    BufferedImage resized = convertToBufferedImage(resizedImage);
+    int width = resized.getWidth();
+    int height = resized.getHeight();
+    int[][] pixels = convertPixelArray(resized);
+    MaterialColor[] colors = MaterialColor.COLORS;
+    Color imageColor;
+    colors = Arrays.stream(colors).filter(s -> s != null).toArray(MaterialColor[]::new);
 
-      for (int i = 0; i < width; i++) {
-        for (int j = 0; j < height; j++) {
-          imageColor = new Color(pixels[j][i], true);
-          double[] imageVec = { (double) imageColor.getRed() / 255.0, (double) imageColor.getGreen() / 255.0,
-              (double) imageColor.getBlue() / 255.0 };
+    for (int i = 0; i < width; i++) {
+      for (int j = 0; j < height; j++) {
+        imageColor = new Color(pixels[j][i], true);
+        double[] imageVec = { (double) imageColor.getRed() / 255.0, (double) imageColor.getGreen() / 255.0,
+            (double) imageColor.getBlue() / 255.0 };
 
-          int best_color = 0;
-          double lowest_distance = 10000;
-          for (int k = 0; k < colors.length; k++) {
-            Color mcColor = new Color(colors[k].color);
-            double[] mcColorVec = { (double) mcColor.getRed() / 255.0, (double) mcColor.getGreen() / 255.0,
-                (double) mcColor.getBlue() / 255.0 };
-            for (int shadeInd = 0; shadeInd < shadeCoeffs.length; shadeInd++) {
-              double distance = distance(imageVec, applyShade(mcColorVec, shadeInd));
-              if (distance < lowest_distance) {
-                lowest_distance = distance;
-                // todo: handle shading with alpha values other than 255
-                if (k == 0 && imageColor.getAlpha() == 255) {
-                  best_color = 119;
-                } else {
-                  best_color = k * shadeCoeffs.length + shadeInd;
-                }
+        int best_color = 0;
+        double lowest_distance = 10000;
+        for (int k = 0; k < colors.length; k++) {
+          Color mcColor = new Color(colors[k].color);
+          double[] mcColorVec = { (double) mcColor.getRed() / 255.0, (double) mcColor.getGreen() / 255.0,
+              (double) mcColor.getBlue() / 255.0 };
+          for (int shadeInd = 0; shadeInd < shadeCoeffs.length; shadeInd++) {
+            double distance = distance(imageVec, applyShade(mcColorVec, shadeInd));
+            if (distance < lowest_distance) {
+              lowest_distance = distance;
+              // todo: handle shading with alpha values other than 255
+              if (k == 0 && imageColor.getAlpha() == 255) {
+                best_color = 119;
+              } else {
+                best_color = k * shadeCoeffs.length + shadeInd;
               }
             }
           }
-          state.colors[i + j * width] = (byte) best_color;
         }
+        state.colors[i + j * width] = (byte) best_color;
       }
-      state.update(player, stack);
-    } catch (IOException e) {
-      System.out.println(e);
     }
     return stack;
   }
