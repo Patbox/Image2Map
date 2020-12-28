@@ -6,9 +6,9 @@ A Fabric mod that allows you to render an image onto a map. Inspired by the Bukk
 
 To render an image, just run this command like so:
 ```
-/mapcreate <path to local/server image>
+/mapcreate "<path to image URL>"
 ```
-Image URLs will be supported soon.
+Currently, you will need to put the image URL in quotes due to Brigadier limitations.
 
 ## Build
 
