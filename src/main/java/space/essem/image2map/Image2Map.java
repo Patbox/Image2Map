@@ -16,6 +16,7 @@ import me.sargunvohra.mcmods.autoconfig1u.serializer.GsonConfigSerializer;
 import net.minecraft.server.command.CommandManager;
 import net.minecraft.server.command.ServerCommandSource;
 import net.minecraft.text.LiteralText;
+import net.minecraft.text.TranslatableText;
 import net.minecraft.item.ItemStack;
 import net.minecraft.entity.ItemEntity;
 import net.minecraft.entity.player.PlayerEntity;
@@ -61,11 +62,37 @@ public class Image2Map implements ModInitializer {
 
                         ItemStack stack = MapRenderer.render(image, source.getWorld(), pos.x, pos.z, player);
 
-                        source.sendFeedback(new LiteralText("Done!"), false);
-                        if (!player.inventory.insertStack(stack)) {
-                            ItemEntity itemEntity = new ItemEntity(player.world, player.getPos().x, player.getPos().y,
-                                    player.getPos().z, stack);
-                            player.world.spawnEntity(itemEntity);
+                        boolean validIngredients = true;
+                        ItemStack mainHandIngredient = ItemStack.fromTag(CONFIG.mainHandIngredient);
+                        if (!mainHandIngredient.isEmpty()) {
+                        	validIngredients = player.getMainHandStack().isItemEqual(mainHandIngredient)
+                    				&& player.getMainHandStack().getCount() >= mainHandIngredient.getCount();
+                        }
+                        ItemStack offHandIngredient = ItemStack.fromTag(CONFIG.offHandIngredient);
+                        if (!offHandIngredient.isEmpty()) {
+                        	validIngredients &= player.getOffHandStack().isItemEqual(offHandIngredient)
+                    				&& player.getOffHandStack().getCount() >= offHandIngredient.getCount();
+                        }
+                        if (validIngredients) {
+                        	if (!mainHandIngredient.isEmpty()) {
+                        		player.getMainHandStack().split(mainHandIngredient.getCount());
+                        	}
+                        	if (!offHandIngredient.isEmpty()) {
+                        		player.getOffHandStack().split(offHandIngredient.getCount());
+                        	}
+                        	
+                        	source.sendFeedback(new LiteralText("Done!"), false);
+                        	if (!player.inventory.insertStack(stack)) {
+                                ItemEntity itemEntity = new ItemEntity(player.world, player.getPos().x, player.getPos().y,
+                                        player.getPos().z, stack);
+                                player.world.spawnEntity(itemEntity);
+                            }
+                        } else {
+                        	source.sendFeedback(new LiteralText(String.format("Missing crafting ingredients!\nRequired:%s%s",
+                        			!mainHandIngredient.isEmpty() ? String.format("\n  Main hand: %d %s", mainHandIngredient.getCount(),
+                        					new TranslatableText(mainHandIngredient.getTranslationKey()).getString()) : "",
+                        			!offHandIngredient.isEmpty() ? String.format("\n  Off hand: %d %s", offHandIngredient.getCount(),
+                        					new TranslatableText(offHandIngredient.getTranslationKey()).getString()) : "")), false);
                         }
 
                         return 1;
