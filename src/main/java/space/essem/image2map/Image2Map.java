@@ -75,6 +75,7 @@ public class Image2Map implements ModInitializer {
                         	validIngredients &= player.getOffHandStack().isItemEqual(offHandIngredient)
                     				&& player.getOffHandStack().getCount() >= CONFIG.offHandIngredientAmount;
                         }
+                        
                         if (validIngredients) {
                         	if (!mainHandIngredient.isEmpty()) {
                         		player.getMainHandStack().split(CONFIG.mainHandIngredientAmount);
@@ -90,13 +91,22 @@ public class Image2Map implements ModInitializer {
                                 player.world.spawnEntity(itemEntity);
                             }
                         } else {
-                        	source.sendFeedback(new LiteralText(String.format("Missing crafting ingredients!\nRequired:%s%s",
-                        			!mainHandIngredient.isEmpty() ? String.format("\n  Main hand: %s%s",
-                        					(CONFIG.mainHandIngredientAmount > 0 ? CONFIG.mainHandIngredientAmount + " " : ""),
-                        					new TranslatableText(mainHandIngredient.getTranslationKey()).getString()) : "",
-                        			!offHandIngredient.isEmpty() ? String.format("\n  Off hand: %s%s",
-                        					CONFIG.offHandIngredientAmount > 0 ? CONFIG.offHandIngredientAmount + " " : "",
-                        					new TranslatableText(offHandIngredient.getTranslationKey()).getString()) : "")), false);
+                        	StringBuilder sb = new StringBuilder("Missing crafting ingredients!\nRequired:");
+                        	if (!mainHandIngredient.isEmpty()) {
+                        		sb.append("\n  Main hand: ");
+                        		if (CONFIG.mainHandIngredientAmount > 0) {
+                        			sb.append(CONFIG.mainHandIngredientAmount + " ");
+                        		}
+                        		sb.append((new TranslatableText(mainHandIngredient.getTranslationKey())).getString());
+                        	}
+                        	if (!offHandIngredient.isEmpty()) {
+                        		sb.append("\n  Off hand: ");
+                        		if (CONFIG.offHandIngredientAmount > 0) {
+                        			sb.append(CONFIG.offHandIngredientAmount + " ");
+                        		}
+                        		sb.append((new TranslatableText(offHandIngredient.getTranslationKey())).getString());
+                        	}
+                        	source.sendFeedback(new LiteralText(sb.toString()), false);
                         }
 
                         return 1;
