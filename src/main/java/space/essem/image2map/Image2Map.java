@@ -20,7 +20,9 @@ import net.minecraft.text.TranslatableText;
 import net.minecraft.item.ItemStack;
 import net.minecraft.entity.ItemEntity;
 import net.minecraft.entity.player.PlayerEntity;
+import net.minecraft.util.Identifier;
 import net.minecraft.util.math.Vec3d;
+import net.minecraft.util.registry.Registry;
 import net.fabricmc.fabric.api.command.v1.CommandRegistrationCallback;
 
 public class Image2Map implements ModInitializer {
@@ -61,24 +63,24 @@ public class Image2Map implements ModInitializer {
                         }
 
                         ItemStack stack = MapRenderer.render(image, source.getWorld(), pos.x, pos.z, player);
-
+                        
                         boolean validIngredients = true;
-                        ItemStack mainHandIngredient = ItemStack.fromTag(CONFIG.mainHandIngredient);
+                        ItemStack mainHandIngredient = new ItemStack(Registry.ITEM.get(Identifier.tryParse(CONFIG.mainHandIngredientId)), 1);
                         if (!mainHandIngredient.isEmpty()) {
                         	validIngredients = player.getMainHandStack().isItemEqual(mainHandIngredient)
-                    				&& player.getMainHandStack().getCount() >= mainHandIngredient.getCount();
+                    				&& player.getMainHandStack().getCount() >= CONFIG.mainHandIngredientAmount;
                         }
-                        ItemStack offHandIngredient = ItemStack.fromTag(CONFIG.offHandIngredient);
+                        ItemStack offHandIngredient = new ItemStack(Registry.ITEM.get(Identifier.tryParse(CONFIG.offHandIngredientId)), 1);
                         if (!offHandIngredient.isEmpty()) {
                         	validIngredients &= player.getOffHandStack().isItemEqual(offHandIngredient)
-                    				&& player.getOffHandStack().getCount() >= offHandIngredient.getCount();
+                    				&& player.getOffHandStack().getCount() >= CONFIG.offHandIngredientAmount;
                         }
                         if (validIngredients) {
                         	if (!mainHandIngredient.isEmpty()) {
-                        		player.getMainHandStack().split(mainHandIngredient.getCount());
+                        		player.getMainHandStack().split(CONFIG.mainHandIngredientAmount);
                         	}
                         	if (!offHandIngredient.isEmpty()) {
-                        		player.getOffHandStack().split(offHandIngredient.getCount());
+                        		player.getOffHandStack().split(CONFIG.offHandIngredientAmount);
                         	}
                         	
                         	source.sendFeedback(new LiteralText("Done!"), false);
@@ -89,9 +91,11 @@ public class Image2Map implements ModInitializer {
                             }
                         } else {
                         	source.sendFeedback(new LiteralText(String.format("Missing crafting ingredients!\nRequired:%s%s",
-                        			!mainHandIngredient.isEmpty() ? String.format("\n  Main hand: %d %s", mainHandIngredient.getCount(),
+                        			!mainHandIngredient.isEmpty() ? String.format("\n  Main hand: %s%s",
+                        					(CONFIG.mainHandIngredientAmount > 0 ? CONFIG.mainHandIngredientAmount + " " : ""),
                         					new TranslatableText(mainHandIngredient.getTranslationKey()).getString()) : "",
-                        			!offHandIngredient.isEmpty() ? String.format("\n  Off hand: %d %s", offHandIngredient.getCount(),
+                        			!offHandIngredient.isEmpty() ? String.format("\n  Off hand: %s%s",
+                        					CONFIG.offHandIngredientAmount > 0 ? CONFIG.offHandIngredientAmount + " " : "",
                         					new TranslatableText(offHandIngredient.getTranslationKey()).getString()) : "")), false);
                         }
 
