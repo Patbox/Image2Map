@@ -7,6 +7,7 @@ import space.essem.image2map.renderer.MapRenderer;
 import java.io.File;
 import java.io.IOException;
 import java.net.URL;
+import java.net.URLConnection;
 import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
 import com.mojang.brigadier.arguments.StringArgumentType;
@@ -31,7 +32,7 @@ public class Image2Map implements ModInitializer {
 
         CommandRegistrationCallback.EVENT.register((dispatcher, dedicated) -> {
             dispatcher.register(CommandManager.literal("mapcreate").requires(source -> source.hasPermissionLevel(CONFIG.minPermLevel))
-                    .then(CommandManager.argument("path", StringArgumentType.string()).executes(context -> {
+                    .then(CommandManager.argument("path", StringArgumentType.greedyString()).executes(context -> {
                         ServerCommandSource source = context.getSource();
                         Vec3d pos = source.getPosition();
                         PlayerEntity player = source.getPlayer();
@@ -42,7 +43,10 @@ public class Image2Map implements ModInitializer {
                         try {
                             if (isValid(input)) {
                                 URL url = new URL(input);
-                                image = ImageIO.read(url);
+                                URLConnection connection = url.openConnection();
+                                connection.setRequestProperty("User-Agent", "Image2Map mod");
+                                connection.connect();
+                                image = ImageIO.read(connection.getInputStream());
                             } else if (CONFIG.allowLocalFiles) {
                                 File file = new File(input);
                                 image = ImageIO.read(file);
