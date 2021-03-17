@@ -55,8 +55,8 @@ public class Image2Map implements ModInitializer {
             dispatcher.register(CommandManager.literal("multimapcreate")
                     .requires(source -> source.hasPermissionLevel(CONFIG.minPermLevel))
                     .then(CommandManager.argument("mode", StringArgumentType.word()).suggests(new DitherModeSuggestionProvider())
-                    .then(CommandManager.argument("sizex", IntegerArgumentType.integer(1, 20))
-                    .then(CommandManager.argument("sizey", IntegerArgumentType.integer(1, 20))
+                    .then(CommandManager.argument("sizex", IntegerArgumentType.integer(1, 10))
+                    .then(CommandManager.argument("sizey", IntegerArgumentType.integer(1, 10))
                     .then(CommandManager.argument("path", StringArgumentType.greedyString())
                         .executes(this::createMaps))))));
         });
