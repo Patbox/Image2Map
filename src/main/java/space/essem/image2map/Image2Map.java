@@ -114,31 +114,36 @@ public class Image2Map implements ModInitializer {
         ServerCommandSource source = context.getSource();
         Vec3d pos = source.getPosition();
         PlayerEntity player = source.getPlayer();
-        DitherMode mode = null;
+        
         String modeStr = StringArgumentType.getString(context, "mode");
         final int countX = IntegerArgumentType.getInteger(context, "sizex");
         final int countY = IntegerArgumentType.getInteger(context, "sizey");
         try {
-            mode = DitherMode.fromString(modeStr);
-        } catch (IllegalArgumentException e) {
-            throw new SimpleCommandExceptionType(() -> "Invalid dither mode '" + modeStr + "'").create();
-        }
-        String input = StringArgumentType.getString(context, "path");
+            DitherMode mode = DitherMode.fromString(modeStr);
+			String input = StringArgumentType.getString(context, "path");
 
-        source.sendFeedback(new LiteralText("Generating image map..."), false);
-        BufferedImage image = getImage(input, source);
-        if (image == null)
-            return 0;
-        
-        int sectionWidth = image.getWidth() / countX;
-        int sectionHeight = image.getHeight() / countY;
-        for (int y = 0; y < countY; y++) {
-            for (int x = 0; x < countX; x++) {
-                BufferedImage subImage = image.getSubimage(x * sectionWidth, y * sectionHeight, sectionWidth, sectionHeight);
-                createAndGiveMap(source, pos, player, mode, subImage);
-            }
-        }
-        source.sendFeedback(new LiteralText("Done!"), false);
+			source.sendFeedback(new LiteralText("Generating image map..."), false);
+			BufferedImage image = getImage(input, source);
+			if (image == null)
+				return 0;
+			new Thread(() -> {
+				int sectionWidth = image.getWidth() / countX;
+				int sectionHeight = image.getHeight() / countY;
+				for (int y = 0; y < countY; y++) {
+					for (int x = 0; x < countX; x++) {
+						BufferedImage subImage = image.getSubimage(x * sectionWidth, y * sectionHeight, sectionWidth, sectionHeight);
+						createAndGiveMap(source, pos, player, mode, subImage);
+					}
+				}
+				source.sendFeedback(new LiteralText("Done!"), false);
+			}).start();
+			source.sendFeedback(new LiteralText("Map Creation Queued!"), false);
+		} catch (IllegalArgumentException e) {
+			throw new SimpleCommandExceptionType(() -> "Invalid dither mode '" + modeStr + "'").create();
+		} catch (Exception e) {
+			e.printStackTrace();
+			throw e;
+		}
 
         return 1;
     }
