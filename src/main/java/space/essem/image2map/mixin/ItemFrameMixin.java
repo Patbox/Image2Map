@@ -56,7 +56,7 @@ public abstract class ItemFrameMixin extends AbstractDecorationEntity {
 					ItemFrameEntity frame = this.getAlignedFrameAt(
 						  origin.add(hVec.multiply(x))
 								.add(0.0, y, 0.0));
-					if (frame == null || frame.getHeldItemStack().isEmpty()) {
+					if (frame == null || (!this.equals(frame) && !frame.getHeldItemStack().isEmpty())) {
 						value.setCustomName(new LiteralText("Invalid Item Frame Structure"));
 						return;
 					}
@@ -100,7 +100,7 @@ public abstract class ItemFrameMixin extends AbstractDecorationEntity {
 				List<ItemFrameEntity> itemFramesInBlock = world.getEntitiesByType(EntityType.ITEM_FRAME, Box.method_29968(searchPos.floorAlongAxes(EnumSet.of(
 					  Direction.Axis.X, Direction.Axis.Y, Direction.Axis.Z))), entity -> true);
 				ItemFrameEntity alignedFrame = this.getAlignedFrameAt(searchPos);
-				if (alignedFrame != null && alignedFrame.getHeldItemStack().isEmpty()) {
+				if (alignedFrame != null && (alignedFrame == (ItemFrameEntity)(Object)this || alignedFrame.getHeldItemStack().isEmpty())) {
 					searchPos = searchPos.add(searchDir);
 					found++;
 				} else {
