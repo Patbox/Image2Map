@@ -32,7 +32,7 @@ public abstract class ItemFrameMixin extends AbstractDecorationEntity {
 			  value.getTag() == null ||
 			  this.facing.getAxis().isVertical() ||
 			  !value.getTag().contains("i2mStoredMaps", 9) ||
-			  value.getTag().getList("i2mStoredMaps", 9).get(0).getType() != 9
+			  !(value.getTag().getList("i2mStoredMaps", 9).get(0) instanceof ListTag)
 		) return;
 		ListTag maps = (ListTag) value.getTag().get("i2mStoredMaps");
 		if (maps != null) {
@@ -64,7 +64,10 @@ public abstract class ItemFrameMixin extends AbstractDecorationEntity {
 				}
 			}
 			for (int y = 0; y < vSize; y++) {
-				if (!(maps.get(y) instanceof ListTag) || ((ListTag) maps.get(y)).size() < vSize)
+				if (!(maps.get(y) instanceof ListTag) || ((ListTag) maps.get(y)).size() < vSize) {
+					value.setCustomName(new LiteralText("Invalid Item NBT"));
+					return;
+				}
 				for (int x = 0; x < hSize; x++) {
 					ItemStack frameStack = new ItemStack(Items.FILLED_MAP, 1);
 					frameStack.putSubTag("map", ((ListTag)maps.get(y)).get(x));
