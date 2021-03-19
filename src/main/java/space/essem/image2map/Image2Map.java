@@ -4,8 +4,10 @@ import com.mojang.brigadier.LiteralMessage;
 import com.mojang.brigadier.arguments.BoolArgumentType;
 import net.fabricmc.api.ModInitializer;
 import net.minecraft.item.FilledMapItem;
+import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.IntTag;
 import net.minecraft.nbt.ListTag;
+import net.minecraft.nbt.StringTag;
 import net.minecraft.server.network.ServerPlayerEntity;
 import org.jetbrains.annotations.NotNull;
 import space.essem.image2map.config.Image2MapConfig;
@@ -14,6 +16,7 @@ import space.essem.image2map.renderer.MapRenderer;
 import java.awt.*;
 import java.io.File;
 import java.io.IOException;
+import java.net.MalformedURLException;
 import java.net.URL;
 import java.net.URLConnection;
 import java.util.concurrent.CompletableFuture;
@@ -43,6 +46,12 @@ import net.minecraft.entity.player.PlayerEntity;
 import net.fabricmc.fabric.api.command.v1.CommandRegistrationCallback;
 
 public class Image2Map implements ModInitializer {
+	private ListTag getLore(int width, int height) {
+		ListTag posterLore = new ListTag();
+		posterLore.add(StringTag.of("[{\"text\":\"Use me on an item frame grid at least " + width + " by " + height + " big\",\"color\":\"gold\",\"italic\":false}]"));
+		posterLore.add(StringTag.of("[{\"text\":\"and I'll make a big image!\",\"color\":\"gold\",\"italic\":false}]"));
+		return posterLore;
+	}
 	public static Image2MapConfig CONFIG = AutoConfig.register(Image2MapConfig.class, GsonConfigSerializer::new)
 		.getConfig();
 
@@ -188,6 +197,32 @@ public class Image2Map implements ModInitializer {
 					ItemStack stack = createMap(source, context.mode, MapRenderer.convertToBufferedImage(
 						sourceImage.getScaledInstance(128, 128, Image.SCALE_DEFAULT)));
 					stack.putSubTag("i2mStoredMaps", maps);
+					CompoundTag stackDisplay = stack.getOrCreateSubTag("display");
+					String path = context.getPath();
+					String fileName = path.length() < 15 ? path : "image";
+					if (isValid(path)) {
+						try {
+							URL url = new URL(path);
+							fileName = url.getFile();
+							int start = fileName.lastIndexOf('/');
+							if (start > 0 && start + 1 < fileName.length())
+								fileName = fileName.substring(start + 1);
+							int end = fileName.indexOf('?');
+							if (end > 0)
+								fileName = fileName.substring(0, end);
+						} catch (MalformedURLException e) {
+							e.printStackTrace();
+						}
+					} else {
+						int index = Math.max(path.lastIndexOf('\\'), path.lastIndexOf('/'));
+						if (index > 0)
+							fileName = path.substring(index);
+						else
+							fileName = path;
+					}
+					stackDisplay.put("Name", StringTag.of("{\"text\":\"Poster for '" + fileName + "'\",\"italic\":false}"));
+					stackDisplay.put("Lore", getLore(context.countX, context.countY));
+
 					givePlayerMap(player, stack);
 				}
 				source.sendFeedback(new LiteralText("Done!"), false);
