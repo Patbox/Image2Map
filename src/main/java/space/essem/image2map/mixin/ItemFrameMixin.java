@@ -64,7 +64,7 @@ public abstract class ItemFrameMixin extends AbstractDecorationEntity {
 				}
 			}
 			for (int y = 0; y < vSize; y++) {
-				if (!(maps.get(y) instanceof ListTag) || ((ListTag) maps.get(y)).size() < vSize) {
+				if (!(maps.get(y) instanceof ListTag) || ((ListTag) maps.get(y)).size() < hSize) {
 					value.setCustomName(new LiteralText("Invalid Item NBT"));
 					return;
 				}
@@ -100,7 +100,7 @@ public abstract class ItemFrameMixin extends AbstractDecorationEntity {
 				List<ItemFrameEntity> itemFramesInBlock = world.getEntitiesByType(EntityType.ITEM_FRAME, Box.method_29968(searchPos.floorAlongAxes(EnumSet.of(
 					  Direction.Axis.X, Direction.Axis.Y, Direction.Axis.Z))), entity -> true);
 				ItemFrameEntity alignedFrame = this.getAlignedFrameAt(searchPos);
-				if (alignedFrame != null && (alignedFrame == (ItemFrameEntity)(Object)this || alignedFrame.getHeldItemStack().isEmpty())) {
+				if (alignedFrame != null && (alignedFrame == (Object)this || alignedFrame.getHeldItemStack().isEmpty())) {
 					searchPos = searchPos.add(searchDir);
 					found++;
 				} else {

@@ -1,7 +1,11 @@
 package space.essem.image2map;
 
+import com.mojang.brigadier.Command;
 import com.mojang.brigadier.LiteralMessage;
 import com.mojang.brigadier.arguments.BoolArgumentType;
+import com.mojang.brigadier.builder.ArgumentBuilder;
+import com.mojang.brigadier.builder.LiteralArgumentBuilder;
+import com.mojang.brigadier.builder.RequiredArgumentBuilder;
 import net.fabricmc.api.ModInitializer;
 import net.minecraft.item.FilledMapItem;
 import net.minecraft.nbt.CompoundTag;
@@ -9,19 +13,14 @@ import net.minecraft.nbt.IntTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.StringTag;
 import net.minecraft.server.network.ServerPlayerEntity;
-import org.jetbrains.annotations.NotNull;
 import space.essem.image2map.config.Image2MapConfig;
 import space.essem.image2map.renderer.MapRenderer;
 
 import java.awt.*;
-import java.io.File;
-import java.io.IOException;
 import java.net.MalformedURLException;
 import java.net.URL;
-import java.net.URLConnection;
 import java.util.concurrent.CompletableFuture;
 
-import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
 
 import com.mojang.brigadier.arguments.IntegerArgumentType;
@@ -32,8 +31,6 @@ import com.mojang.brigadier.exceptions.SimpleCommandExceptionType;
 import com.mojang.brigadier.suggestion.SuggestionProvider;
 import com.mojang.brigadier.suggestion.Suggestions;
 import com.mojang.brigadier.suggestion.SuggestionsBuilder;
-
-import org.jetbrains.annotations.Nullable;
 
 import me.sargunvohra.mcmods.autoconfig1u.AutoConfig;
 import me.sargunvohra.mcmods.autoconfig1u.serializer.GsonConfigSerializer;
@@ -59,69 +56,44 @@ public class Image2Map implements ModInitializer {
 	public void onInitialize() {
 		System.out.println("Loading Image2Map...");
 
-		CommandRegistrationCallback.EVENT.register((dispatcher, dedicated) ->
+		CommandRegistrationCallback.EVENT.register((dispatcher, _dedicated) ->
 			dispatcher.register(CommandManager.literal("mapcreate")
-				.requires(source -> source.hasPermissionLevel(CONFIG.minPermLevel))
-				.then(CommandManager.argument("mode", StringArgumentType.word())
-					.suggests(new DitherModeSuggestionProvider())
-					.then(CommandManager.argument("path", StringArgumentType.string())
-						.executes(ctx -> createMaps(MapGenerationContext.getBasicInfo(ctx)))
-					)
-				).then(CommandManager.literal("multi")
 					.requires(source -> source.hasPermissionLevel(CONFIG.minPermLevel))
-					.then(CommandManager.argument("mode", StringArgumentType.word())
-						.suggests(new DitherModeSuggestionProvider())
+					.then(ditherAndPath(ctx -> createMaps(MapGenerationContext.getBasicInfo(ctx))))
+					.then(CommandManager.literal("multi")
 						.then(CommandManager.argument("width", IntegerArgumentType.integer(1, 25))
 						.then(CommandManager.argument("height", IntegerArgumentType.integer(1, 25))
-						.then(CommandManager.argument("path", StringArgumentType.string())
 							.then(CommandManager.argument("scale", StringArgumentType.word())
-							.suggests(new ScaleSuggestionProvider())
-							.then(CommandManager.argument("makePoster", BoolArgumentType.bool())
-								.executes(ctx ->
-									createMaps(MapGenerationContext.getBasicInfo(ctx).getSize(ctx).getScaleMethod(ctx).getPosterfy(ctx))
+								.suggests(ScaleMode.getSuggestor())
+								.then(CommandManager.argument("makePoster", BoolArgumentType.bool())
+									.then(ditherAndPath(ctx ->
+										createMaps(MapGenerationContext.getBasicInfo(ctx).getSize(ctx).getScaleMethod(ctx).getMakePoster(ctx)))
 								)
+								.then(ditherAndPath(ctx -> createMaps(MapGenerationContext.getBasicInfo(ctx).getSize(ctx).getScaleMethod(ctx))))
 							)
-							.executes(ctx ->
-								createMaps(MapGenerationContext.getBasicInfo(ctx).getSize(ctx).getScaleMethod(ctx))
-							))
-							.executes(ctx -> createMaps(MapGenerationContext.getBasicInfo(ctx).getSize(ctx)))
-						)))
+							.then(ditherAndPath(ctx -> createMaps(MapGenerationContext.getBasicInfo(ctx).getSize(ctx))))
+							)
+						))
 					)
-				)
-			));
+			)
+		);
 	}
 
-	static class ScaleSuggestionProvider implements SuggestionProvider<ServerCommandSource> {
-		@Override
-		public CompletableFuture<Suggestions> getSuggestions(CommandContext<ServerCommandSource> context, SuggestionsBuilder builder) throws CommandSyntaxException {
-			if ("fit".startsWith(builder.getRemaining().toLowerCase()))
-				builder.suggest("fit");
-			if ("fill".startsWith(builder.getRemaining().toLowerCase()))
-				builder.suggest("fill");
-			if ("stretch".startsWith(builder.getRemaining().toLowerCase()))
-				builder.suggest("stretch");
-			return builder.buildFuture();
-		}
+
+	protected static ArgumentBuilder<ServerCommandSource, ?> ditherAndPath(Command<ServerCommandSource> command) {
+		return CommandManager.argument("dither", StringArgumentType.word())
+			.suggests(DitherMode.getSuggestor())
+			.then(CommandManager.argument("path", StringArgumentType.greedyString())
+				.executes(command)
+			);
 	}
 
-	static class DitherModeSuggestionProvider implements SuggestionProvider<ServerCommandSource> {
-
-		@Override
-		public CompletableFuture<Suggestions> getSuggestions(CommandContext<ServerCommandSource> context,
-															 SuggestionsBuilder builder) throws CommandSyntaxException {
-			if ("none".startsWith(builder.getRemaining().toLowerCase()))
-				builder.suggest("none");
-			if ("dither".startsWith(builder.getRemaining().toLowerCase()))
-				builder.suggest("dither");
-			return builder.buildFuture();
-		}
-
-	}
 
 	public enum DitherMode {
 		NONE,
 		FLOYD;
 
+		// The default from string method doesn't quite fit my needs
 		public static DitherMode fromString(String string) throws CommandSyntaxException {
 			if (string.equalsIgnoreCase("NONE"))
 				return DitherMode.NONE;
@@ -131,61 +103,51 @@ public class Image2Map implements ModInitializer {
 				new SimpleCommandExceptionType(new LiteralMessage("Invalid Dither mode '" + string + "'")),
 				new LiteralMessage("Invalid Dither mode '" + string + "'"));
 		}
-	}
 
-	private static void scaleImage(BufferedImage output, BufferedImage input, Graphics g, boolean fitAll) {
-		double imgAspect = (double) input.getHeight() / input.getWidth();
-
-		int outputWidth = output.getWidth();
-		int outputHeight = output.getHeight();
-
-		double canvasAspect = (double) outputHeight / outputWidth;
-
-		int x1 = 0;
-		int y1 = 0;
-
-		// XOR conditionally negates the IF statement (A XOR true == !A, A XOR false == A)
-		if (canvasAspect > imgAspect ^ !fitAll) {
-			y1 = outputHeight;
-			outputHeight = (int) (outputWidth * imgAspect);
-			y1 = (y1 - outputHeight) / 2;
-		} else {
-			x1 = outputWidth;
-			outputWidth = (int) (outputHeight / imgAspect);
-			x1 = (x1 - outputWidth) / 2;
+		public static SuggestionProvider<ServerCommandSource> getSuggestor() {
+			return new DitherModeSuggestionProvider();
 		}
-		int x2 = outputWidth + x1;
-		int y2 = outputHeight + y1;
 
-		g.drawImage(input, x1, y1, x2, y2, 0, 0, input.getWidth(), input.getHeight(), null);
+		static class DitherModeSuggestionProvider implements SuggestionProvider<ServerCommandSource> {
+
+			@Override
+			public CompletableFuture<Suggestions> getSuggestions(CommandContext<ServerCommandSource> context,
+																 SuggestionsBuilder builder) {
+				if ("none".startsWith(builder.getRemaining().toLowerCase()))
+					builder.suggest("none");
+				if ("dither".startsWith(builder.getRemaining().toLowerCase()))
+					builder.suggest("dither");
+				return builder.buildFuture();
+			}
+
+		}
 	}
 
 	private int createMaps(MapGenerationContext context) throws CommandSyntaxException {
 		try {
 			ServerCommandSource source = context.getSource();
 			source.sendFeedback(new LiteralText("Generating image map..."), false);
-			BufferedImage sourceImage = getImage(context.path, source);
+			BufferedImage sourceImage = ImageUtils.getImage(context.getPath(), source);
 			if (sourceImage == null)
 				return 0;
 			ServerPlayerEntity player = source.getPlayer();
 			new Thread(() -> {
-				BufferedImage img = new BufferedImage(context.countX * 128, context.countY * 128, BufferedImage.TYPE_INT_ARGB);
-				Graphics2D graphics = img.createGraphics();
+				BufferedImage img = new BufferedImage(context.getCountX() * 128, context.getCountY() * 128, BufferedImage.TYPE_INT_ARGB);
 				if (context.getScaleMode() == ScaleMode.STRETCH)
-					graphics.drawImage(sourceImage, 0, 0, img.getWidth(), img.getHeight(), null);
+					img.createGraphics().drawImage(sourceImage, 0, 0, img.getWidth(), img.getHeight(), null);
 				else if (context.getScaleMode() == ScaleMode.FIT)
-					scaleImage(img, sourceImage, graphics, true);
+					ImageUtils.scaleImage(img, sourceImage, true);
 				else if (context.getScaleMode() == ScaleMode.FILL)
-					scaleImage(img, sourceImage, graphics, false);
+					ImageUtils.scaleImage(img, sourceImage, false);
 				img.flush();
 				final int SECTION_SIZE = 128;
 				ListTag maps = new ListTag();
-				for (int y = 0; y < context.countY; y++) {
+				for (int y = 0; y < context.getCountY(); y++) {
 					ListTag mapsY = new ListTag();
-					for (int x = 0; x < context.countX; x++) {
+					for (int x = 0; x < context.getCountX(); x++) {
 						BufferedImage subImage = img.getSubimage(x * SECTION_SIZE, y * SECTION_SIZE, SECTION_SIZE, SECTION_SIZE);
-						ItemStack stack = createMap(source, context.mode, subImage);
-						if (context.shouldMakePoster() && (context.countX > 1 || context.countY > 1)) {
+						ItemStack stack = createMap(source, context.getDither(), subImage);
+						if (context.shouldMakePoster() && (context.getCountX() > 1 || context.getCountY() > 1)) {
 							mapsY.add(IntTag.of(FilledMapItem.getMapId(stack)));
 						} else {
 							givePlayerMap(player, stack);
@@ -193,14 +155,15 @@ public class Image2Map implements ModInitializer {
 					}
 					maps.add(mapsY);
 				}
-				if (context.shouldMakePoster()) {
-					ItemStack stack = createMap(source, context.mode, MapRenderer.convertToBufferedImage(
-						sourceImage.getScaledInstance(128, 128, Image.SCALE_DEFAULT)));
+				if (context.shouldMakePoster() && (context.getCountX() > 1 || context.getCountY() > 1)) {
+					BufferedImage posterImg = new BufferedImage(context.getCountX() * 128, context.getCountY() * 128, BufferedImage.TYPE_INT_ARGB);
+					ImageUtils.scaleImage(posterImg, sourceImage, true);
+					ItemStack stack = createMap(source, context.getDither(), posterImg);
 					stack.putSubTag("i2mStoredMaps", maps);
 					CompoundTag stackDisplay = stack.getOrCreateSubTag("display");
 					String path = context.getPath();
 					String fileName = path.length() < 15 ? path : "image";
-					if (isValid(path)) {
+					if (ImageUtils.isValid(path)) {
 						try {
 							URL url = new URL(path);
 							fileName = url.getFile();
@@ -221,7 +184,7 @@ public class Image2Map implements ModInitializer {
 							fileName = path;
 					}
 					stackDisplay.put("Name", StringTag.of("{\"text\":\"Poster for '" + fileName + "'\",\"italic\":false}"));
-					stackDisplay.put("Lore", getLore(context.countX, context.countY));
+					stackDisplay.put("Lore", getLore(context.getCountX(), context.getCountY()));
 
 					givePlayerMap(player, stack);
 				}
@@ -236,34 +199,6 @@ public class Image2Map implements ModInitializer {
 	}
 
 
-	@Nullable
-	private BufferedImage getImage(String urlStr, ServerCommandSource source) {
-		BufferedImage image = null;
-		try {
-			if (isValid(urlStr)) {
-				URL url = new URL(urlStr);
-				URLConnection connection = url.openConnection();
-				connection.setRequestProperty("User-Agent", "Image2Map mod");
-				connection.connect();
-				image = ImageIO.read(connection.getInputStream());
-			} else if (CONFIG.allowLocalFiles) {
-				File file = new File(urlStr);
-				image = ImageIO.read(file);
-			} else {
-				image = null;
-			}
-		} catch (IOException e) {
-			source.sendFeedback(new LiteralText("That doesn't seem to be a valid image."), false);
-			return null;
-		}
-
-		if (image == null) {
-			source.sendFeedback(new LiteralText("That doesn't seem to be a valid image."), false);
-			return null;
-		}
-		return image;
-	}
-
 	private ItemStack createMap(ServerCommandSource source, DitherMode mode,
 								BufferedImage image) {
 		return MapRenderer.render(image, mode, source.getWorld(), source.getPosition().x, source.getPosition().z);
@@ -277,16 +212,7 @@ public class Image2Map implements ModInitializer {
 		}
 	}
 
-	private static boolean isValid(String url) {
-		try {
-			new URL(url).toURI();
-			return true;
-		} catch (Exception e) {
-			return false;
-		}
-	}
-
-	private static enum ScaleMode {
+	public enum ScaleMode {
 		FIT,
 		FILL,
 		STRETCH;
@@ -303,108 +229,21 @@ public class Image2Map implements ModInitializer {
 					throw new IllegalArgumentException("input string must be a valid enum value!");
 			}
 		}
-	}
-
-	private static class MapGenerationContext {
-		public ServerCommandSource getSource() {
-			return source;
+		public static SuggestionProvider<ServerCommandSource> getSuggestor() {
+			return new ScaleSuggestionProvider();
 		}
-
-		public MapGenerationContext source(ServerCommandSource source) {
-			this.source = source;
-			return this;
+		private static class ScaleSuggestionProvider implements SuggestionProvider<ServerCommandSource> {
+			@Override
+			public CompletableFuture<Suggestions> getSuggestions(CommandContext<ServerCommandSource> context, SuggestionsBuilder builder) {
+				if ("fit".startsWith(builder.getRemaining().toLowerCase()))
+					builder.suggest("fit");
+				if ("fill".startsWith(builder.getRemaining().toLowerCase()))
+					builder.suggest("fill");
+				if ("stretch".startsWith(builder.getRemaining().toLowerCase()))
+					builder.suggest("stretch");
+				return builder.buildFuture();
+			}
 		}
-
-		ServerCommandSource source;
-		private DitherMode mode = DitherMode.FLOYD;
-		private ScaleMode scaleMode = ScaleMode.STRETCH;
-		private String path;
-
-		public boolean shouldMakePoster() {
-			return makePoster;
-		}
-
-		private boolean makePoster = true;
-		private int countX = 1;
-		private int countY = 1;
-
-		private static MapGenerationContext getBasicInfo(CommandContext<ServerCommandSource> context) throws CommandSyntaxException {
-			return new MapGenerationContext(StringArgumentType.getString(context, "path"))
-				.mode(DitherMode.fromString(StringArgumentType.getString(context, "mode")))
-				.source(context.getSource());
-		}
-
-		private MapGenerationContext getSize(CommandContext<ServerCommandSource> context) {
-			return this
-				.countX(IntegerArgumentType.getInteger(context, "width"))
-				.countY(IntegerArgumentType.getInteger(context, "height"));
-		}
-
-		private MapGenerationContext getScaleMethod(CommandContext<ServerCommandSource> context) {
-			return this
-				.scaleMode(ScaleMode.fromString(StringArgumentType.getString(context, "scale")));
-		}
-
-		public MapGenerationContext getPosterfy(CommandContext<ServerCommandSource> context) {
-			return this
-				.makePoster(BoolArgumentType.getBool(context, "makePoster"));
-		}
-
-		private MapGenerationContext makePoster(boolean makePoster) {
-			this.makePoster = makePoster;
-			return this;
-		}
-
-
-		public DitherMode getMode() {
-			return mode;
-		}
-
-		public MapGenerationContext mode(DitherMode mode) {
-			this.mode = mode;
-			return this;
-		}
-
-		public String getPath() {
-			return path;
-		}
-
-		public MapGenerationContext path(String path) {
-			this.path = path;
-			return this;
-		}
-
-		public int getCountX() {
-			return countX;
-		}
-
-		public MapGenerationContext countX(int countX) {
-			this.countX = countX;
-			return this;
-		}
-
-		public int getCountY() {
-			return countY;
-		}
-
-		public MapGenerationContext countY(int countY) {
-			this.countY = countY;
-			return this;
-		}
-
-		public MapGenerationContext(@NotNull String path) {
-			this.path = path;
-		}
-
-		public ScaleMode getScaleMode() {
-			return scaleMode;
-		}
-
-		public MapGenerationContext scaleMode(ScaleMode scaleMode) {
-			this.scaleMode = scaleMode;
-			return this;
-		}
-
 	}
 
 }
