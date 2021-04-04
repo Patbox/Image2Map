@@ -4,8 +4,6 @@ import com.mojang.brigadier.Command;
 import com.mojang.brigadier.LiteralMessage;
 import com.mojang.brigadier.arguments.BoolArgumentType;
 import com.mojang.brigadier.builder.ArgumentBuilder;
-import com.mojang.brigadier.builder.LiteralArgumentBuilder;
-import com.mojang.brigadier.builder.RequiredArgumentBuilder;
 import net.fabricmc.api.ModInitializer;
 import net.minecraft.item.FilledMapItem;
 import net.minecraft.nbt.CompoundTag;
@@ -13,15 +11,15 @@ import net.minecraft.nbt.IntTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.StringTag;
 import net.minecraft.server.network.ServerPlayerEntity;
+import net.minecraft.text.*;
+import net.minecraft.util.Formatting;
 import space.essem.image2map.config.Image2MapConfig;
 import space.essem.image2map.renderer.MapRenderer;
 
-import java.awt.*;
-import java.net.MalformedURLException;
-import java.net.URL;
 import java.util.concurrent.CompletableFuture;
 
 import java.awt.image.BufferedImage;
+import java.util.function.UnaryOperator;
 
 import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.arguments.StringArgumentType;
@@ -36,17 +34,18 @@ import me.sargunvohra.mcmods.autoconfig1u.AutoConfig;
 import me.sargunvohra.mcmods.autoconfig1u.serializer.GsonConfigSerializer;
 import net.minecraft.server.command.CommandManager;
 import net.minecraft.server.command.ServerCommandSource;
-import net.minecraft.text.LiteralText;
 import net.minecraft.item.ItemStack;
 import net.minecraft.entity.ItemEntity;
 import net.minecraft.entity.player.PlayerEntity;
 import net.fabricmc.fabric.api.command.v1.CommandRegistrationCallback;
 
 public class Image2Map implements ModInitializer {
+	private static final UnaryOperator<Style> LORE_STYLE = s -> s.withColor(Formatting.GOLD).withItalic(false);
 	private ListTag getLore(int width, int height) {
 		ListTag posterLore = new ListTag();
-		posterLore.add(StringTag.of("[{\"text\":\"Use me on an item frame grid at least " + width + " by " + height + " big\",\"color\":\"gold\",\"italic\":false}]"));
-		posterLore.add(StringTag.of("[{\"text\":\"and I'll make a big image!\",\"color\":\"gold\",\"italic\":false}]"));
+		posterLore.add(StringTag.of(Text.Serializer.toJson(new LiteralText(
+			String.format("Use me on an item frame grid at least %d by %d big", width, height)).styled(LORE_STYLE))));
+		posterLore.add(StringTag.of(Text.Serializer.toJson(new LiteralText("and I'll make a big image!").styled(LORE_STYLE))));
 		return posterLore;
 	}
 	public static Image2MapConfig CONFIG = AutoConfig.register(Image2MapConfig.class, GsonConfigSerializer::new)
@@ -59,7 +58,6 @@ public class Image2Map implements ModInitializer {
 		CommandRegistrationCallback.EVENT.register((dispatcher, _dedicated) ->
 			dispatcher.register(CommandManager.literal("mapcreate")
 					.requires(source -> source.hasPermissionLevel(CONFIG.minPermLevel))
-					.then(ditherAndPath(ctx -> createMaps(MapGenerationContext.getBasicInfo(ctx))))
 					.then(CommandManager.literal("multi")
 						.then(CommandManager.argument("width", IntegerArgumentType.integer(1, 25))
 						.then(CommandManager.argument("height", IntegerArgumentType.integer(1, 25))
@@ -68,13 +66,14 @@ public class Image2Map implements ModInitializer {
 								.then(CommandManager.argument("makePoster", BoolArgumentType.bool())
 									.then(ditherAndPath(ctx ->
 										createMaps(MapGenerationContext.getBasicInfo(ctx).getSize(ctx).getScaleMethod(ctx).getMakePoster(ctx)))
+									)
 								)
 								.then(ditherAndPath(ctx -> createMaps(MapGenerationContext.getBasicInfo(ctx).getSize(ctx).getScaleMethod(ctx))))
 							)
 							.then(ditherAndPath(ctx -> createMaps(MapGenerationContext.getBasicInfo(ctx).getSize(ctx))))
-							)
 						))
 					)
+					.then(ditherAndPath(ctx -> createMaps(MapGenerationContext.getBasicInfo(ctx))))
 			)
 		);
 	}
@@ -113,9 +112,10 @@ public class Image2Map implements ModInitializer {
 			@Override
 			public CompletableFuture<Suggestions> getSuggestions(CommandContext<ServerCommandSource> context,
 																 SuggestionsBuilder builder) {
-				if ("none".startsWith(builder.getRemaining().toLowerCase()))
+				String typed = builder.getRemaining().toLowerCase();
+				if ("none".startsWith(typed))
 					builder.suggest("none");
-				if ("dither".startsWith(builder.getRemaining().toLowerCase()))
+				if ("dither".startsWith(typed))
 					builder.suggest("dither");
 				return builder.buildFuture();
 			}
@@ -127,19 +127,12 @@ public class Image2Map implements ModInitializer {
 		try {
 			ServerCommandSource source = context.getSource();
 			source.sendFeedback(new LiteralText("Generating image map..."), false);
-			BufferedImage sourceImage = ImageUtils.getImage(context.getPath(), source);
-			if (sourceImage == null)
+			BufferedImage sourceImg = ImageUtils.getImage(context.getPath(), source);
+			if (sourceImg == null)
 				return 0;
 			ServerPlayerEntity player = source.getPlayer();
 			new Thread(() -> {
-				BufferedImage img = new BufferedImage(context.getCountX() * 128, context.getCountY() * 128, BufferedImage.TYPE_INT_ARGB);
-				if (context.getScaleMode() == ScaleMode.STRETCH)
-					img.createGraphics().drawImage(sourceImage, 0, 0, img.getWidth(), img.getHeight(), null);
-				else if (context.getScaleMode() == ScaleMode.FIT)
-					ImageUtils.scaleImage(img, sourceImage, true);
-				else if (context.getScaleMode() == ScaleMode.FILL)
-					ImageUtils.scaleImage(img, sourceImage, false);
-				img.flush();
+				BufferedImage img = ImageUtils.scaleImage(context.getScaleMode(), context.getCountX(), context.getCountY(), sourceImg);
 				final int SECTION_SIZE = 128;
 				ListTag maps = new ListTag();
 				for (int y = 0; y < context.getCountY(); y++) {
@@ -156,34 +149,14 @@ public class Image2Map implements ModInitializer {
 					maps.add(mapsY);
 				}
 				if (context.shouldMakePoster() && (context.getCountX() > 1 || context.getCountY() > 1)) {
-					BufferedImage posterImg = new BufferedImage(context.getCountX() * 128, context.getCountY() * 128, BufferedImage.TYPE_INT_ARGB);
-					ImageUtils.scaleImage(posterImg, sourceImage, true);
+					BufferedImage posterImg = ImageUtils.scaleImage(ScaleMode.FIT, 1, 1, img);
 					ItemStack stack = createMap(source, context.getDither(), posterImg);
 					stack.putSubTag("i2mStoredMaps", maps);
 					CompoundTag stackDisplay = stack.getOrCreateSubTag("display");
 					String path = context.getPath();
-					String fileName = path.length() < 15 ? path : "image";
-					if (ImageUtils.isValid(path)) {
-						try {
-							URL url = new URL(path);
-							fileName = url.getFile();
-							int start = fileName.lastIndexOf('/');
-							if (start > 0 && start + 1 < fileName.length())
-								fileName = fileName.substring(start + 1);
-							int end = fileName.indexOf('?');
-							if (end > 0)
-								fileName = fileName.substring(0, end);
-						} catch (MalformedURLException e) {
-							e.printStackTrace();
-						}
-					} else {
-						int index = Math.max(path.lastIndexOf('\\'), path.lastIndexOf('/'));
-						if (index > 0)
-							fileName = path.substring(index);
-						else
-							fileName = path;
-					}
-					stackDisplay.put("Name", StringTag.of("{\"text\":\"Poster for '" + fileName + "'\",\"italic\":false}"));
+					String fileName = ImageUtils.getImageName(path);
+					if (fileName == null) fileName = path.length() < 15 ? path : "image";
+					stackDisplay.put("Name", StringTag.of(String.format("{\"text\":\"Poster for '%s'\",\"italic\":false}", fileName)));
 					stackDisplay.put("Lore", getLore(context.getCountX(), context.getCountY()));
 
 					givePlayerMap(player, stack);
@@ -235,11 +208,12 @@ public class Image2Map implements ModInitializer {
 		private static class ScaleSuggestionProvider implements SuggestionProvider<ServerCommandSource> {
 			@Override
 			public CompletableFuture<Suggestions> getSuggestions(CommandContext<ServerCommandSource> context, SuggestionsBuilder builder) {
-				if ("fit".startsWith(builder.getRemaining().toLowerCase()))
+				String typed = builder.getRemaining().toLowerCase();
+				if ("fit".startsWith(typed))
 					builder.suggest("fit");
-				if ("fill".startsWith(builder.getRemaining().toLowerCase()))
+				if ("fill".startsWith(typed))
 					builder.suggest("fill");
-				if ("stretch".startsWith(builder.getRemaining().toLowerCase()))
+				if ("stretch".startsWith(typed))
 					builder.suggest("stretch");
 				return builder.buildFuture();
 			}

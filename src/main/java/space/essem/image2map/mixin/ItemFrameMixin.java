@@ -5,7 +5,9 @@ import net.minecraft.entity.decoration.AbstractDecorationEntity;
 import net.minecraft.entity.decoration.ItemFrameEntity;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
+import net.minecraft.nbt.IntTag;
 import net.minecraft.nbt.ListTag;
+import net.minecraft.nbt.Tag;
 import net.minecraft.text.LiteralText;
 import net.minecraft.util.math.Box;
 import net.minecraft.util.math.Direction;
@@ -52,6 +54,11 @@ public abstract class ItemFrameMixin extends AbstractDecorationEntity {
 			}
 			ItemFrameEntity[][] posterFrames = new ItemFrameEntity[vSize][hSize];
 			for (int y = 0; y < vSize; y++) {
+				Tag mapLine = maps.get(y);
+				if (!(mapLine instanceof ListTag) || ((ListTag) mapLine).size() < hSize || ((ListTag)mapLine).getElementType() != 3) {
+					value.setCustomName(new LiteralText("Invalid Item NBT"));
+					return;
+				}
 				for (int x = 0; x < hSize; x++) {
 					ItemFrameEntity frame = this.getAlignedFrameAt(
 						  origin.add(hVec.multiply(x))
@@ -64,20 +71,12 @@ public abstract class ItemFrameMixin extends AbstractDecorationEntity {
 				}
 			}
 			for (int y = 0; y < vSize; y++) {
-				if (!(maps.get(y) instanceof ListTag) || ((ListTag) maps.get(y)).size() < hSize) {
-					value.setCustomName(new LiteralText("Invalid Item NBT"));
-					return;
-				}
 				for (int x = 0; x < hSize; x++) {
 					ItemStack frameStack = new ItemStack(Items.FILLED_MAP, 1);
 					frameStack.putSubTag("map", ((ListTag)maps.get(y)).get(x));
 					posterFrames[vSize - y - 1][x].setHeldItemStack(frameStack, true);
 				}
 			}
-			System.out.println("Magic Map put in item frame!\n");
-			System.out.println("Origin Pos: " + origin);
-			System.out.println("Image Size is: " + hSize + "x" + vSize);
-			System.out.println("Facing " + this.facing.toString());
 
 		}
 	}

@@ -9,7 +9,6 @@ import java.util.Arrays;
 import java.util.Objects;
 
 import net.minecraft.block.MaterialColor;
-import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.item.FilledMapItem;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.map.MapState;
