@@ -27,7 +27,8 @@ public class ImageUtils {
         int x1 = 0;
         int y1 = 0;
 
-        // XOR conditionally negates the IF statement (A XOR true == !A, A XOR false == A)
+        // XOR conditionally negates the IF statement
+        // (A XOR true == !A, A XOR false == A)
         if (canvasAspect > imgAspect ^ !fitAll) {
             y1 = outputHeight;
             outputHeight = (int) (outputWidth * imgAspect);
@@ -111,11 +112,12 @@ public class ImageUtils {
         BufferedImage img = new BufferedImage(countX * 128, countY * 128, BufferedImage.TYPE_INT_ARGB);
         switch (scale) {
             case STRETCH:
-                img.createGraphics().drawImage(sourceImage, 0, 0, img.getWidth(), img.getHeight(), null); break;
+                img.createGraphics().drawImage(sourceImage, 0, 0, img.getWidth(), img.getHeight(), null);
+                break;
             case FIT:
-                scaleImage(countX * 128, countY * 128, sourceImage, true); break;
+                return scaleImage(countX * 128, countY * 128, sourceImage, true);
             case FILL:
-                scaleImage(countX * 128, countY * 128, sourceImage, false); break;
+                return scaleImage(countX * 128, countY * 128, sourceImage, false);
             default:
                 throw new RuntimeException("impossible scale mode!");
         }

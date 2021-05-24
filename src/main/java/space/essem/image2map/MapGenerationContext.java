@@ -19,7 +19,7 @@ class MapGenerationContext {
     }
 
     ServerCommandSource source;
-    private Image2Map.DitherMode dither = Image2Map.DitherMode.FLOYD;
+    private Image2Map.DitherMode dither = Image2Map.DitherMode.NONE;
     private Image2Map.ScaleMode scaleMode = Image2Map.ScaleMode.STRETCH;
     private String path;
 
@@ -31,33 +31,36 @@ class MapGenerationContext {
     private int countX = 1;
     private int countY = 1;
 
-    public static MapGenerationContext getBasicInfo(CommandContext<ServerCommandSource> context) throws CommandSyntaxException {
-        return new MapGenerationContext(StringArgumentType.getString(context, "path"))
-                .dither(Image2Map.DitherMode.fromString(StringArgumentType.getString(context, "dither")))
+    public static MapGenerationContext getBasicInfo(CommandContext<ServerCommandSource> context)
+            throws CommandSyntaxException {
+        return MapGenerationContext.getBasicInfo(context, false);
+    }
+
+    public static MapGenerationContext getBasicInfo(CommandContext<ServerCommandSource> context, boolean basic)
+            throws CommandSyntaxException {
+        MapGenerationContext ctx = new MapGenerationContext(StringArgumentType.getString(context, "path"))
                 .source(context.getSource());
+        return basic ? ctx
+                : ctx.dither(Image2Map.DitherMode.fromString(StringArgumentType.getString(context, "dither")));
     }
 
     public MapGenerationContext getSize(CommandContext<ServerCommandSource> context) {
-        return this
-                .countX(IntegerArgumentType.getInteger(context, "width"))
+        return this.countX(IntegerArgumentType.getInteger(context, "width"))
                 .countY(IntegerArgumentType.getInteger(context, "height"));
     }
 
     public MapGenerationContext getScaleMethod(CommandContext<ServerCommandSource> context) {
-        return this
-                .scaleMode(Image2Map.ScaleMode.fromString(StringArgumentType.getString(context, "scale")));
+        return this.scaleMode(Image2Map.ScaleMode.fromString(StringArgumentType.getString(context, "scale")));
     }
 
     public MapGenerationContext getMakePoster(CommandContext<ServerCommandSource> context) {
-        return this
-                .makePoster(BoolArgumentType.getBool(context, "makePoster"));
+        return this.makePoster(BoolArgumentType.getBool(context, "makePoster"));
     }
 
     public MapGenerationContext makePoster(boolean makePoster) {
         this.makePoster = makePoster;
         return this;
     }
-
 
     public Image2Map.DitherMode getDither() {
         return dither;

@@ -2,7 +2,6 @@ package space.essem.image2map;
 
 import com.mojang.brigadier.Command;
 import com.mojang.brigadier.LiteralMessage;
-import com.mojang.brigadier.arguments.BoolArgumentType;
 import com.mojang.brigadier.builder.ArgumentBuilder;
 import net.fabricmc.api.ModInitializer;
 import net.minecraft.item.FilledMapItem;
@@ -41,56 +40,51 @@ import net.fabricmc.fabric.api.command.v1.CommandRegistrationCallback;
 
 public class Image2Map implements ModInitializer {
 	private static final UnaryOperator<Style> LORE_STYLE = s -> s.withColor(Formatting.GOLD).withItalic(false);
+
 	private ListTag getLore(int width, int height) {
 		ListTag posterLore = new ListTag();
-		posterLore.add(StringTag.of(Text.Serializer.toJson(new LiteralText(
-			String.format("Use me on an item frame grid at least %d by %d big", width, height)).styled(LORE_STYLE))));
-		posterLore.add(StringTag.of(Text.Serializer.toJson(new LiteralText("and I'll make a big image!").styled(LORE_STYLE))));
+		posterLore.add(StringTag.of(Text.Serializer
+				.toJson(new LiteralText(String.format("Use me on an item frame grid at least %d by %d big", width, height))
+						.styled(LORE_STYLE))));
+		posterLore
+				.add(StringTag.of(Text.Serializer.toJson(new LiteralText("and I'll make a big image!").styled(LORE_STYLE))));
 		return posterLore;
 	}
+
 	public static Image2MapConfig CONFIG = AutoConfig.register(Image2MapConfig.class, GsonConfigSerializer::new)
-		.getConfig();
+			.getConfig();
 
 	@Override
 	public void onInitialize() {
 		System.out.println("Loading Image2Map...");
 
-		CommandRegistrationCallback.EVENT.register((dispatcher, _dedicated) ->
-			dispatcher.register(CommandManager.literal("mapcreate")
-					.requires(source -> source.hasPermissionLevel(CONFIG.minPermLevel))
-					.then(CommandManager.literal("multi")
-						.then(CommandManager.argument("width", IntegerArgumentType.integer(1, 25))
-						.then(CommandManager.argument("height", IntegerArgumentType.integer(1, 25))
-							.then(CommandManager.argument("scale", StringArgumentType.word())
-								.suggests(ScaleMode.getSuggestor())
-								.then(CommandManager.argument("makePoster", BoolArgumentType.bool())
-									.then(ditherAndPath(ctx ->
-										createMaps(MapGenerationContext.getBasicInfo(ctx).getSize(ctx).getScaleMethod(ctx).getMakePoster(ctx)))
-									)
-								)
-								.then(ditherAndPath(ctx -> createMaps(MapGenerationContext.getBasicInfo(ctx).getSize(ctx).getScaleMethod(ctx))))
-							)
-							.then(ditherAndPath(ctx -> createMaps(MapGenerationContext.getBasicInfo(ctx).getSize(ctx))))
-						))
-					)
-					.then(ditherAndPath(ctx -> createMaps(MapGenerationContext.getBasicInfo(ctx))))
-			)
-		);
-	}
+		CommandRegistrationCallback.EVENT.register((dispatcher, _dedicated) -> {
+			dispatcher.register(
+					CommandManager.literal("mapcreate").requires(source -> source.hasPermissionLevel(CONFIG.minPermLevel))
+							.then(CommandManager.argument("path", StringArgumentType.greedyString())
+									.executes(ctx -> createMaps(MapGenerationContext.getBasicInfo(ctx, true)))));
 
+			dispatcher.register(
+					CommandManager.literal("dithermap").requires(source -> source.hasPermissionLevel(CONFIG.minPermLevel))
+							.then(ditherAndPath(ctx -> createMaps(MapGenerationContext.getBasicInfo(ctx)))));
+
+			dispatcher.register(CommandManager.literal("multimap")
+					.requires(source -> source.hasPermissionLevel(CONFIG.minPermLevel))
+					.then(CommandManager.argument("width", IntegerArgumentType.integer(1, 25)).then(CommandManager
+							.argument("height", IntegerArgumentType.integer(1, 25))
+							.then(CommandManager.argument("scale", StringArgumentType.word()).suggests(ScaleMode.getSuggestor())
+									.then(ditherAndPath(ctx -> createMaps(
+											MapGenerationContext.getBasicInfo(ctx).getSize(ctx).getScaleMethod(ctx).makePoster(true))))))));
+		});
+	}
 
 	protected static ArgumentBuilder<ServerCommandSource, ?> ditherAndPath(Command<ServerCommandSource> command) {
-		return CommandManager.argument("dither", StringArgumentType.word())
-			.suggests(DitherMode.getSuggestor())
-			.then(CommandManager.argument("path", StringArgumentType.greedyString())
-				.executes(command)
-			);
+		return CommandManager.argument("dither", StringArgumentType.word()).suggests(DitherMode.getSuggestor())
+				.then(CommandManager.argument("path", StringArgumentType.greedyString()).executes(command));
 	}
 
-
 	public enum DitherMode {
-		NONE,
-		FLOYD;
+		NONE, FLOYD;
 
 		// The default from string method doesn't quite fit my needs
 		public static DitherMode fromString(String string) throws CommandSyntaxException {
@@ -99,8 +93,8 @@ public class Image2Map implements ModInitializer {
 			else if (string.equalsIgnoreCase("DITHER") || string.equalsIgnoreCase("FLOYD"))
 				return DitherMode.FLOYD;
 			throw new CommandSyntaxException(
-				new SimpleCommandExceptionType(new LiteralMessage("Invalid Dither mode '" + string + "'")),
-				new LiteralMessage("Invalid Dither mode '" + string + "'"));
+					new SimpleCommandExceptionType(new LiteralMessage("Invalid Dither mode '" + string + "'")),
+					new LiteralMessage("Invalid Dither mode '" + string + "'"));
 		}
 
 		public static SuggestionProvider<ServerCommandSource> getSuggestor() {
@@ -111,7 +105,7 @@ public class Image2Map implements ModInitializer {
 
 			@Override
 			public CompletableFuture<Suggestions> getSuggestions(CommandContext<ServerCommandSource> context,
-																 SuggestionsBuilder builder) {
+					SuggestionsBuilder builder) {
 				String typed = builder.getRemaining().toLowerCase();
 				if ("none".startsWith(typed))
 					builder.suggest("none");
@@ -132,7 +126,8 @@ public class Image2Map implements ModInitializer {
 				return 0;
 			ServerPlayerEntity player = source.getPlayer();
 			new Thread(() -> {
-				BufferedImage img = ImageUtils.scaleImage(context.getScaleMode(), context.getCountX(), context.getCountY(), sourceImg);
+				BufferedImage img = ImageUtils.scaleImage(context.getScaleMode(), context.getCountX(), context.getCountY(),
+						sourceImg);
 				final int SECTION_SIZE = 128;
 				ListTag maps = new ListTag();
 				for (int y = 0; y < context.getCountY(); y++) {
@@ -155,8 +150,10 @@ public class Image2Map implements ModInitializer {
 					CompoundTag stackDisplay = stack.getOrCreateSubTag("display");
 					String path = context.getPath();
 					String fileName = ImageUtils.getImageName(path);
-					if (fileName == null) fileName = path.length() < 15 ? path : "image";
-					stackDisplay.put("Name", StringTag.of(String.format("{\"text\":\"Poster for '%s'\",\"italic\":false}", fileName)));
+					if (fileName == null)
+						fileName = path.length() < 15 ? path : "image";
+					stackDisplay.put("Name",
+							StringTag.of(String.format("{\"text\":\"Poster for '%s'\",\"italic\":false}", fileName)));
 					stackDisplay.put("Lore", getLore(context.getCountX(), context.getCountY()));
 
 					givePlayerMap(player, stack);
@@ -171,24 +168,20 @@ public class Image2Map implements ModInitializer {
 		return 1;
 	}
 
-
-	private ItemStack createMap(ServerCommandSource source, DitherMode mode,
-								BufferedImage image) {
+	private ItemStack createMap(ServerCommandSource source, DitherMode mode, BufferedImage image) {
 		return MapRenderer.render(image, mode, source.getWorld(), source.getPosition().x, source.getPosition().z);
 	}
 
 	private void givePlayerMap(PlayerEntity player, ItemStack stack) {
 		if (!player.inventory.insertStack(stack)) {
-			ItemEntity itemEntity = new ItemEntity(player.world, player.getPos().x, player.getPos().y,
-				player.getPos().z, stack);
+			ItemEntity itemEntity = new ItemEntity(player.world, player.getPos().x, player.getPos().y, player.getPos().z,
+					stack);
 			player.world.spawnEntity(itemEntity);
 		}
 	}
 
 	public enum ScaleMode {
-		FIT,
-		FILL,
-		STRETCH;
+		FIT, FILL, STRETCH;
 
 		public static ScaleMode fromString(String sMode) {
 			switch (sMode.toUpperCase()) {
@@ -202,12 +195,15 @@ public class Image2Map implements ModInitializer {
 					throw new IllegalArgumentException("input string must be a valid enum value!");
 			}
 		}
+
 		public static SuggestionProvider<ServerCommandSource> getSuggestor() {
 			return new ScaleSuggestionProvider();
 		}
+
 		private static class ScaleSuggestionProvider implements SuggestionProvider<ServerCommandSource> {
 			@Override
-			public CompletableFuture<Suggestions> getSuggestions(CommandContext<ServerCommandSource> context, SuggestionsBuilder builder) {
+			public CompletableFuture<Suggestions> getSuggestions(CommandContext<ServerCommandSource> context,
+					SuggestionsBuilder builder) {
 				String typed = builder.getRemaining().toLowerCase();
 				if ("fit".startsWith(typed))
 					builder.suggest("fit");

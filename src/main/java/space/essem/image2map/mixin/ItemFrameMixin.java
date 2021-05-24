@@ -5,7 +5,6 @@ import net.minecraft.entity.decoration.AbstractDecorationEntity;
 import net.minecraft.entity.decoration.ItemFrameEntity;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
-import net.minecraft.nbt.IntTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.Tag;
 import net.minecraft.text.LiteralText;
@@ -27,20 +26,21 @@ public abstract class ItemFrameMixin extends AbstractDecorationEntity {
 		throw new IllegalStateException("this should never be called!");
 	}
 
-	@Inject(method = "setHeldItemStack(Lnet/minecraft/item/ItemStack;Z)V", at =
-		@At(value = "INVOKE", shift = At.Shift.AFTER, target = "net/minecraft/world/World.updateComparators(Lnet/minecraft/util/math/BlockPos;Lnet/minecraft/block/Block;)V"))
+	@Inject(method = "setHeldItemStack(Lnet/minecraft/item/ItemStack;Z)V", at = @At(value = "INVOKE", shift = At.Shift.AFTER, target = "net/minecraft/world/World.updateComparators(Lnet/minecraft/util/math/BlockPos;Lnet/minecraft/block/Block;)V"))
 	private void checkForPosterMap(ItemStack value, boolean update, CallbackInfo ci) {
-		if (value.getItem() != Items.FILLED_MAP ||
-			  value.getTag() == null ||
-			  this.facing.getAxis().isVertical() ||
-			  !value.getTag().contains("i2mStoredMaps", 9) ||
-			  !(value.getTag().getList("i2mStoredMaps", 9).get(0) instanceof ListTag)
-		) return;
+		if (value.getItem() != Items.FILLED_MAP || value.getTag() == null
+				|| !value.getTag().contains("i2mStoredMaps", 9)
+				|| !(value.getTag().getList("i2mStoredMaps", 9).get(0) instanceof ListTag))
+			return;
 		ListTag maps = (ListTag) value.getTag().get("i2mStoredMaps");
 		if (maps != null) {
-			int hSize = ((ListTag)maps.get(0)).size();
+			int hSize = ((ListTag) maps.get(0)).size();
 			int vSize = maps.size();
 			Vec3d origin = this.getPos();
+			if (facing.getAxis().isVertical()) {
+				value.setCustomName(new LiteralText("Floor/ceiling posters aren't supported yet!"));
+				return;
+			}
 			Vec3d hVec = Vec3d.of(facing.rotateYCounterclockwise().getVector());
 			origin = verifyOrigin(hSize, origin, hVec);
 			if (origin == null) {
@@ -55,14 +55,13 @@ public abstract class ItemFrameMixin extends AbstractDecorationEntity {
 			ItemFrameEntity[][] posterFrames = new ItemFrameEntity[vSize][hSize];
 			for (int y = 0; y < vSize; y++) {
 				Tag mapLine = maps.get(y);
-				if (!(mapLine instanceof ListTag) || ((ListTag) mapLine).size() < hSize || ((ListTag)mapLine).getElementType() != 3) {
+				if (!(mapLine instanceof ListTag) || ((ListTag) mapLine).size() < hSize
+						|| ((ListTag) mapLine).getElementType() != 3) {
 					value.setCustomName(new LiteralText("Invalid Item NBT"));
 					return;
 				}
 				for (int x = 0; x < hSize; x++) {
-					ItemFrameEntity frame = this.getAlignedFrameAt(
-						  origin.add(hVec.multiply(x))
-								.add(0.0, y, 0.0));
+					ItemFrameEntity frame = this.getAlignedFrameAt(origin.add(hVec.multiply(x)).add(0.0, y, 0.0));
 					if (frame == null || (!this.equals(frame) && !frame.getHeldItemStack().isEmpty())) {
 						value.setCustomName(new LiteralText("Invalid Item Frame Structure"));
 						return;
@@ -73,7 +72,7 @@ public abstract class ItemFrameMixin extends AbstractDecorationEntity {
 			for (int y = 0; y < vSize; y++) {
 				for (int x = 0; x < hSize; x++) {
 					ItemStack frameStack = new ItemStack(Items.FILLED_MAP, 1);
-					frameStack.putSubTag("map", ((ListTag)maps.get(y)).get(x));
+					frameStack.putSubTag("map", ((ListTag) maps.get(y)).get(x));
 					posterFrames[vSize - y - 1][x].setHeldItemStack(frameStack, true);
 				}
 			}
@@ -82,9 +81,11 @@ public abstract class ItemFrameMixin extends AbstractDecorationEntity {
 	}
 
 	/**
-	 * Ensures there is at least `target` item frames in a row, returning the position of the first one in the row.
-	 * @param target the target number of item frames
-	 * @param origin the initial position for the search
+	 * Ensures there is at least `target` item frames in a row, returning the
+	 * position of the first one in the row.
+	 * 
+	 * @param target    the target number of item frames
+	 * @param origin    the initial position for the search
 	 * @param searchDir the direction to move each search
 	 * @return the position of the first item frame.
 	 */
@@ -93,36 +94,41 @@ public abstract class ItemFrameMixin extends AbstractDecorationEntity {
 		// ensure origin is unique since we mutate it
 		origin = new Vec3d(origin.x, origin.y, origin.z);
 		Vec3d searchPos = origin;
-		boolean reverseSearch = false; // when we run out of item frames in forward search we reverse to find the new origin
+		// when we run out of item frames in forward search
+		// we reverse to find the new origin
+		boolean reverseSearch = false;
 		while (found < target) {
 			if (!reverseSearch) {
-				List<ItemFrameEntity> itemFramesInBlock = world.getEntitiesByType(EntityType.ITEM_FRAME, Box.method_29968(searchPos.floorAlongAxes(EnumSet.of(
-					  Direction.Axis.X, Direction.Axis.Y, Direction.Axis.Z))), entity -> true);
 				ItemFrameEntity alignedFrame = this.getAlignedFrameAt(searchPos);
-				if (alignedFrame != null && (alignedFrame == (Object)this || alignedFrame.getHeldItemStack().isEmpty())) {
+				if (alignedFrame != null && (alignedFrame == (Object) this || alignedFrame.getHeldItemStack().isEmpty())) {
 					searchPos = searchPos.add(searchDir);
 					found++;
 				} else {
 					reverseSearch = true;
 				}
 			} else {
-				//start searching left from the origin pos minus one (since we already searched the origin pos)
-				// we also move the origin left because we want the detected maps to be between originPos and searchPos
+				/*
+				 * start searching left from the origin pos minus one (since we already searched
+				 * the origin pos)
+				 * 
+				 * we also move the origin left because we want the detected maps to be between
+				 * originPos and searchPos
+				 */
 				origin = origin.subtract(searchDir);
 				if (this.getAlignedFrameAt(origin) != null) {
 					searchPos = searchPos.subtract(searchDir);
 					found++;
-				} else break;
+				} else
+					break;
 			}
 		}
 		return found == target ? origin : null;
 	}
+
 	private ItemFrameEntity getAlignedFrameAt(Vec3d pos) {
-		List<ItemFrameEntity> itemFramesInBlock = world.getEntitiesByType(
-			  EntityType.ITEM_FRAME,
-			  Box.method_29968(pos.floorAlongAxes(EnumSet.of(
-			  	  Direction.Axis.X, Direction.Axis.Y, Direction.Axis.Z))),
-			  entity -> entity.getHorizontalFacing().equals(this.getHorizontalFacing()));
+		List<ItemFrameEntity> itemFramesInBlock = world.getEntitiesByType(EntityType.ITEM_FRAME,
+				Box.method_29968(pos.floorAlongAxes(EnumSet.of(Direction.Axis.X, Direction.Axis.Y, Direction.Axis.Z))),
+				entity -> entity.getHorizontalFacing().equals(this.getHorizontalFacing()));
 		return itemFramesInBlock.size() > 0 ? itemFramesInBlock.get(0) : null;
 	}
 }
