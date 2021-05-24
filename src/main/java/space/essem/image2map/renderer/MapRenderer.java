@@ -9,7 +9,6 @@ import java.util.Arrays;
 import java.util.Objects;
 
 import net.minecraft.block.MaterialColor;
-import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.item.FilledMapItem;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.map.MapState;
@@ -30,10 +29,10 @@ public class MapRenderer {
         return new double[] { color[0] * coeff, color[1] * coeff, color[2] * coeff };
     }
 
-    public static ItemStack render(BufferedImage image, DitherMode mode, ServerWorld world, double x, double z,
-            PlayerEntity player) {
+    public static ItemStack render(BufferedImage image, DitherMode mode, ServerWorld world, double x, double z) {
         ItemStack stack = FilledMapItem.createMap(world, (int) x, (int) z, (byte) 3, false, false);
         MapState state = FilledMapItem.getMapState(stack, world);
+        assert state != null;
         state.locked = true;
         Image resizedImage = image.getScaledInstance(128, 128, Image.SCALE_DEFAULT);
         BufferedImage resized = convertToBufferedImage(resizedImage);
@@ -172,7 +171,7 @@ public class MapRenderer {
         return result;
     }
 
-    private static BufferedImage convertToBufferedImage(Image image) {
+    public static BufferedImage convertToBufferedImage(Image image) {
         BufferedImage newImage = new BufferedImage(image.getWidth(null), image.getHeight(null),
                 BufferedImage.TYPE_4BYTE_ABGR);
         Graphics2D g = newImage.createGraphics();

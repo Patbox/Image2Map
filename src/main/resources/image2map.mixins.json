@@ -1,0 +1,13 @@
+{
+	"required": true,
+	"minVersion": "0.8",
+	"package": "space.essem.image2map.mixin",
+	"compatibilityLevel": "JAVA_8",
+	"mixins": [
+		"ItemFrameMixin"
+	],
+	"injectors": {
+		"defaultRequire": 1,
+		"maxShiftBy": 5
+	}
+}
