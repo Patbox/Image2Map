@@ -1,6 +1,7 @@
 package space.essem.image2map;
 
 import net.fabricmc.api.ModInitializer;
+import space.essem.image2map.Image2Map.DitherModeSuggestionProvider;
 import space.essem.image2map.config.Image2MapConfig;
 import space.essem.image2map.renderer.MapRenderer;
 
@@ -21,14 +22,15 @@ import com.mojang.brigadier.suggestion.SuggestionProvider;
 import com.mojang.brigadier.suggestion.Suggestions;
 import com.mojang.brigadier.suggestion.SuggestionsBuilder;
 
-import me.sargunvohra.mcmods.autoconfig1u.AutoConfig;
-import me.sargunvohra.mcmods.autoconfig1u.serializer.GsonConfigSerializer;
+import me.shedaniel.autoconfig.AutoConfig;
+import me.shedaniel.autoconfig.serializer.GsonConfigSerializer;
 import net.minecraft.server.command.CommandManager;
 import net.minecraft.server.command.ServerCommandSource;
 import net.minecraft.text.LiteralText;
 import net.minecraft.item.ItemStack;
 import net.minecraft.entity.ItemEntity;
 import net.minecraft.entity.player.PlayerEntity;
+import net.minecraft.entity.player.PlayerInventory;
 import net.minecraft.util.math.Vec3d;
 import net.fabricmc.fabric.api.command.v1.CommandRegistrationCallback;
 
@@ -115,7 +117,7 @@ public class Image2Map implements ModInitializer {
         ItemStack stack = MapRenderer.render(image, mode, source.getWorld(), pos.x, pos.z, player);
 
         source.sendFeedback(new LiteralText("Done!"), false);
-        if (!player.inventory.insertStack(stack)) {
+        if (!player.getInventory().insertStack(stack)) {
             ItemEntity itemEntity = new ItemEntity(player.world, player.getPos().x, player.getPos().y,
                     player.getPos().z, stack);
             player.world.spawnEntity(itemEntity);
