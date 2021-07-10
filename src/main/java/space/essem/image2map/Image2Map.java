@@ -21,8 +21,8 @@ import com.mojang.brigadier.suggestion.SuggestionProvider;
 import com.mojang.brigadier.suggestion.Suggestions;
 import com.mojang.brigadier.suggestion.SuggestionsBuilder;
 
-import me.sargunvohra.mcmods.autoconfig1u.AutoConfig;
-import me.sargunvohra.mcmods.autoconfig1u.serializer.GsonConfigSerializer;
+import me.shedaniel.autoconfig.AutoConfig;
+import me.shedaniel.autoconfig.serializer.GsonConfigSerializer;
 import net.minecraft.server.command.CommandManager;
 import net.minecraft.server.command.ServerCommandSource;
 import net.minecraft.text.LiteralText;
@@ -115,7 +115,7 @@ public class Image2Map implements ModInitializer {
         ItemStack stack = MapRenderer.render(image, mode, source.getWorld(), pos.x, pos.z, player);
 
         source.sendFeedback(new LiteralText("Done!"), false);
-        if (!player.inventory.insertStack(stack)) {
+        if (!player.getInventory().insertStack(stack)) {
             ItemEntity itemEntity = new ItemEntity(player.world, player.getPos().x, player.getPos().y,
                     player.getPos().z, stack);
             player.world.spawnEntity(itemEntity);

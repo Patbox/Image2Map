@@ -8,11 +8,13 @@ import java.awt.image.DataBufferByte;
 import java.util.Arrays;
 import java.util.Objects;
 
-import net.minecraft.block.MaterialColor;
+import net.minecraft.block.MapColor;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.item.FilledMapItem;
 import net.minecraft.item.ItemStack;
+import net.minecraft.item.Items;
 import net.minecraft.item.map.MapState;
+import net.minecraft.nbt.NbtCompound;
 import net.minecraft.server.world.ServerWorld;
 
 import static space.essem.image2map.Image2Map.DitherMode;
@@ -32,17 +34,31 @@ public class MapRenderer {
 
     public static ItemStack render(BufferedImage image, DitherMode mode, ServerWorld world, double x, double z,
             PlayerEntity player) {
-        ItemStack stack = FilledMapItem.createMap(world, (int) x, (int) z, (byte) 3, false, false);
-        MapState state = FilledMapItem.getMapState(stack, world);
-        state.locked = true;
+        // mojang removed the ability to set a map as locked via the "locked" field in
+        // 1.17, so we create and apply our own MapState instead
+        ItemStack stack = new ItemStack(Items.FILLED_MAP);
+        int id = world.getNextMapId();
+        NbtCompound nbt = new NbtCompound();
+
+        nbt.putString("dimension", world.getRegistryKey().getValue().toString());
+        nbt.putInt("xCenter", (int) x);
+        nbt.putInt("zCenter", (int) z);
+        nbt.putBoolean("locked", true);
+        nbt.putBoolean("unlimitedTracking", false);
+        nbt.putBoolean("trackingPosition", false);
+        nbt.putByte("scale", (byte) 3);
+        MapState state = MapState.fromNbt(nbt);
+        world.putMapState(FilledMapItem.getMapName(id), state);
+        stack.getOrCreateTag().putInt("map", id);
+
         Image resizedImage = image.getScaledInstance(128, 128, Image.SCALE_DEFAULT);
         BufferedImage resized = convertToBufferedImage(resizedImage);
         int width = resized.getWidth();
         int height = resized.getHeight();
         int[][] pixels = convertPixelArray(resized);
-        MaterialColor[] mapColors = MaterialColor.COLORS;
+        MapColor[] mapColors = MapColor.COLORS;
         Color imageColor;
-        mapColors = Arrays.stream(mapColors).filter(Objects::nonNull).toArray(MaterialColor[]::new);
+        mapColors = Arrays.stream(mapColors).filter(Objects::nonNull).toArray(MapColor[]::new);
 
         for (int i = 0; i < width; i++) {
             for (int j = 0; j < height; j++) {
@@ -55,36 +71,34 @@ public class MapRenderer {
         }
         return stack;
     }
-    private static Color mapColorToRGBColor(MaterialColor[] colors, int color) {
+
+    private static Color mapColorToRGBColor(MapColor[] colors, int color) {
         Color mcColor = new Color(colors[color >> 2].color);
-        double[] mcColorVec = { 
-            (double) mcColor.getRed(), 
-            (double) mcColor.getGreen(),
-            (double) mcColor.getBlue()
-        };
+        double[] mcColorVec = { (double) mcColor.getRed(), (double) mcColor.getGreen(), (double) mcColor.getBlue() };
         double coeff = shadeCoeffs[color & 3];
-        return new Color((int)(mcColorVec[0] * coeff), (int)(mcColorVec[1] * coeff), (int)(mcColorVec[2] * coeff));
+        return new Color((int) (mcColorVec[0] * coeff), (int) (mcColorVec[1] * coeff), (int) (mcColorVec[2] * coeff));
     }
 
     private static class NegatableColor {
         public final int r;
         public final int g;
         public final int b;
+
         public NegatableColor(int r, int g, int b) {
             this.r = r;
             this.g = g;
             this.b = b;
         }
     }
-    private static int floydDither(MaterialColor[] mapColors, int[][] pixels, int x, int y, Color imageColor) {
-        // double[] imageVec = { (double) imageColor.getRed() / 255.0, (double) imageColor.getGreen() / 255.0,
-        //         (double) imageColor.getBlue() / 255.0 };
+
+    private static int floydDither(MapColor[] mapColors, int[][] pixels, int x, int y, Color imageColor) {
+        // double[] imageVec = { (double) imageColor.getRed() / 255.0, (double)
+        // imageColor.getGreen() / 255.0,
+        // (double) imageColor.getBlue() / 255.0 };
         int colorIndex = nearestColor(mapColors, imageColor);
         Color palletedColor = mapColorToRGBColor(mapColors, colorIndex);
-        NegatableColor error = new NegatableColor(
-            imageColor.getRed() - palletedColor.getRed(),
-            imageColor.getGreen() - palletedColor.getGreen(),
-            imageColor.getBlue() - palletedColor.getBlue());
+        NegatableColor error = new NegatableColor(imageColor.getRed() - palletedColor.getRed(),
+                imageColor.getGreen() - palletedColor.getGreen(), imageColor.getBlue() - palletedColor.getBlue());
         if (pixels[0].length > x + 1) {
             Color pixelColor = new Color(pixels[y][x + 1], true);
             pixels[y][x + 1] = applyError(pixelColor, error, 7.0 / 16.0);
@@ -101,17 +115,17 @@ public class MapRenderer {
                 pixels[y + 1][x + 1] = applyError(pixelColor, error, 1.0 / 16.0);
             }
         }
-            
-        
+
         return colorIndex;
     }
 
     private static int applyError(Color pixelColor, NegatableColor error, double quantConst) {
-        int pR = clamp(pixelColor.getRed() + (int)((double)error.r * quantConst), 0, 255);
-        int pG = clamp(pixelColor.getGreen() + (int)((double)error.g * quantConst), 0, 255);
-        int pB = clamp(pixelColor.getBlue() + (int)((double)error.b * quantConst), 0, 255);
+        int pR = clamp(pixelColor.getRed() + (int) ((double) error.r * quantConst), 0, 255);
+        int pG = clamp(pixelColor.getGreen() + (int) ((double) error.g * quantConst), 0, 255);
+        int pB = clamp(pixelColor.getBlue() + (int) ((double) error.b * quantConst), 0, 255);
         return new Color(pR, pG, pB, pixelColor.getAlpha()).getRGB();
     }
+
     private static int clamp(int i, int min, int max) {
         if (min > max)
             throw new IllegalArgumentException("max value cannot be less than min value");
@@ -122,7 +136,7 @@ public class MapRenderer {
         return i;
     }
 
-    private static int nearestColor(MaterialColor[] colors, Color imageColor) {
+    private static int nearestColor(MapColor[] colors, Color imageColor) {
         double[] imageVec = { (double) imageColor.getRed() / 255.0, (double) imageColor.getGreen() / 255.0,
                 (double) imageColor.getBlue() / 255.0 };
         int best_color = 0;
