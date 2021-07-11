@@ -1,8 +1,8 @@
 package space.essem.image2map.config;
 
-import me.shedaniel.autoconfig.ConfigData;
-import me.shedaniel.autoconfig.annotation.Config;
-import blue.endless.jankson.Comment;
+import me.sargunvohra.mcmods.autoconfig1u.ConfigData;
+import me.sargunvohra.mcmods.autoconfig1u.annotation.Config;
+import me.sargunvohra.mcmods.autoconfig1u.shadowed.blue.endless.jankson.Comment;
 
 @Config(name = "image2map")
 public class Image2MapConfig implements ConfigData {

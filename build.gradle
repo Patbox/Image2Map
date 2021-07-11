@@ -25,10 +25,10 @@ dependencies {
 
 	// PSA: Some older mods, compiled on Loom 0.2.1, might have outdated Maven POMs.
 	// You may need to force-disable transitiveness on them.
-	modImplementation ("me.shedaniel.cloth:cloth-config-fabric:${project.cloth_config_version}") {
-        exclude(group: "net.fabricmc.fabric-api")
-    }
-	implementation "blue.endless:jankson:1.1.0"
+	modApi("me.sargunvohra.mcmods:autoconfig1u:${project.autoconfig_version}") {
+		exclude(group: "net.fabricmc.fabric-api")
+	}
+	include "me.sargunvohra.mcmods:autoconfig1u:${project.autoconfig_version}"
 }
 
 processResources {
