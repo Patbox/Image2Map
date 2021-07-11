@@ -5,8 +5,8 @@ import net.minecraft.entity.decoration.AbstractDecorationEntity;
 import net.minecraft.entity.decoration.ItemFrameEntity;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
-import net.minecraft.nbt.ListTag;
-import net.minecraft.nbt.Tag;
+import net.minecraft.nbt.NbtList;
+import net.minecraft.nbt.NbtElement;
 import net.minecraft.text.LiteralText;
 import net.minecraft.util.math.Box;
 import net.minecraft.util.math.Direction;
@@ -30,11 +30,11 @@ public abstract class ItemFrameMixin extends AbstractDecorationEntity {
 	private void checkForPosterMap(ItemStack value, boolean update, CallbackInfo ci) {
 		if (value.getItem() != Items.FILLED_MAP || value.getTag() == null
 				|| !value.getTag().contains("i2mStoredMaps", 9)
-				|| !(value.getTag().getList("i2mStoredMaps", 9).get(0) instanceof ListTag))
+				|| !(value.getTag().getList("i2mStoredMaps", 9).get(0) instanceof NbtList))
 			return;
-		ListTag maps = (ListTag) value.getTag().get("i2mStoredMaps");
+		NbtList maps = (NbtList) value.getTag().get("i2mStoredMaps");
 		if (maps != null) {
-			int hSize = ((ListTag) maps.get(0)).size();
+			int hSize = ((NbtList) maps.get(0)).size();
 			int vSize = maps.size();
 			Vec3d origin = this.getPos();
 			if (facing.getAxis().isVertical()) {
@@ -54,9 +54,9 @@ public abstract class ItemFrameMixin extends AbstractDecorationEntity {
 			}
 			ItemFrameEntity[][] posterFrames = new ItemFrameEntity[vSize][hSize];
 			for (int y = 0; y < vSize; y++) {
-				Tag mapLine = maps.get(y);
-				if (!(mapLine instanceof ListTag) || ((ListTag) mapLine).size() < hSize
-						|| ((ListTag) mapLine).getElementType() != 3) {
+				NbtElement mapLine = maps.get(y);
+				if (!(mapLine instanceof NbtList) || ((NbtList) mapLine).size() < hSize
+						|| ((NbtList) mapLine).getType() != 3) {
 					value.setCustomName(new LiteralText("Invalid Item NBT"));
 					return;
 				}
@@ -72,7 +72,7 @@ public abstract class ItemFrameMixin extends AbstractDecorationEntity {
 			for (int y = 0; y < vSize; y++) {
 				for (int x = 0; x < hSize; x++) {
 					ItemStack frameStack = new ItemStack(Items.FILLED_MAP, 1);
-					frameStack.putSubTag("map", ((ListTag) maps.get(y)).get(x));
+					frameStack.putSubTag("map", ((NbtList) maps.get(y)).get(x));
 					posterFrames[vSize - y - 1][x].setHeldItemStack(frameStack, true);
 				}
 			}
@@ -127,7 +127,7 @@ public abstract class ItemFrameMixin extends AbstractDecorationEntity {
 
 	private ItemFrameEntity getAlignedFrameAt(Vec3d pos) {
 		List<ItemFrameEntity> itemFramesInBlock = world.getEntitiesByType(EntityType.ITEM_FRAME,
-				Box.method_29968(pos.floorAlongAxes(EnumSet.of(Direction.Axis.X, Direction.Axis.Y, Direction.Axis.Z))),
+				Box.from(pos.floorAlongAxes(EnumSet.of(Direction.Axis.X, Direction.Axis.Y, Direction.Axis.Z))),
 				entity -> entity.getHorizontalFacing().equals(this.getHorizontalFacing()));
 		return itemFramesInBlock.size() > 0 ? itemFramesInBlock.get(0) : null;
 	}

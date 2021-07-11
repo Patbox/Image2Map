@@ -5,10 +5,10 @@ import com.mojang.brigadier.LiteralMessage;
 import com.mojang.brigadier.builder.ArgumentBuilder;
 import net.fabricmc.api.ModInitializer;
 import net.minecraft.item.FilledMapItem;
-import net.minecraft.nbt.CompoundTag;
-import net.minecraft.nbt.IntTag;
-import net.minecraft.nbt.ListTag;
-import net.minecraft.nbt.StringTag;
+import net.minecraft.nbt.NbtCompound;
+import net.minecraft.nbt.NbtInt;
+import net.minecraft.nbt.NbtList;
+import net.minecraft.nbt.NbtString;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.text.*;
 import net.minecraft.util.Formatting;
@@ -41,13 +41,13 @@ import net.fabricmc.fabric.api.command.v1.CommandRegistrationCallback;
 public class Image2Map implements ModInitializer {
 	private static final UnaryOperator<Style> LORE_STYLE = s -> s.withColor(Formatting.GOLD).withItalic(false);
 
-	private ListTag getLore(int width, int height) {
-		ListTag posterLore = new ListTag();
-		posterLore.add(StringTag.of(Text.Serializer
+	private NbtList getLore(int width, int height) {
+		NbtList posterLore = new NbtList();
+		posterLore.add(NbtString.of(Text.Serializer
 				.toJson(new LiteralText(String.format("Use me on an item frame grid at least %d by %d big", width, height))
 						.styled(LORE_STYLE))));
 		posterLore
-				.add(StringTag.of(Text.Serializer.toJson(new LiteralText("and I'll make a big image!").styled(LORE_STYLE))));
+				.add(NbtString.of(Text.Serializer.toJson(new LiteralText("and I'll make a big image!").styled(LORE_STYLE))));
 		return posterLore;
 	}
 
@@ -129,14 +129,14 @@ public class Image2Map implements ModInitializer {
 				BufferedImage img = ImageUtils.scaleImage(context.getScaleMode(), context.getCountX(), context.getCountY(),
 						sourceImg);
 				final int SECTION_SIZE = 128;
-				ListTag maps = new ListTag();
+				NbtList maps = new NbtList();
 				for (int y = 0; y < context.getCountY(); y++) {
-					ListTag mapsY = new ListTag();
+					NbtList mapsY = new NbtList();
 					for (int x = 0; x < context.getCountX(); x++) {
 						BufferedImage subImage = img.getSubimage(x * SECTION_SIZE, y * SECTION_SIZE, SECTION_SIZE, SECTION_SIZE);
 						ItemStack stack = createMap(source, context.getDither(), subImage);
 						if (context.shouldMakePoster() && (context.getCountX() > 1 || context.getCountY() > 1)) {
-							mapsY.add(IntTag.of(FilledMapItem.getMapId(stack)));
+							mapsY.add(NbtInt.of(FilledMapItem.getMapId(stack)));
 						} else {
 							givePlayerMap(player, stack);
 						}
@@ -147,13 +147,13 @@ public class Image2Map implements ModInitializer {
 					BufferedImage posterImg = ImageUtils.scaleImage(ScaleMode.FIT, 1, 1, img);
 					ItemStack stack = createMap(source, context.getDither(), posterImg);
 					stack.putSubTag("i2mStoredMaps", maps);
-					CompoundTag stackDisplay = stack.getOrCreateSubTag("display");
+					NbtCompound stackDisplay = stack.getOrCreateSubTag("display");
 					String path = context.getPath();
 					String fileName = ImageUtils.getImageName(path);
 					if (fileName == null)
 						fileName = path.length() < 15 ? path : "image";
 					stackDisplay.put("Name",
-							StringTag.of(String.format("{\"text\":\"Poster for '%s'\",\"italic\":false}", fileName)));
+							NbtString.of(String.format("{\"text\":\"Poster for '%s'\",\"italic\":false}", fileName)));
 					stackDisplay.put("Lore", getLore(context.getCountX(), context.getCountY()));
 
 					givePlayerMap(player, stack);
@@ -173,7 +173,7 @@ public class Image2Map implements ModInitializer {
 	}
 
 	private void givePlayerMap(PlayerEntity player, ItemStack stack) {
-		if (!player.inventory.insertStack(stack)) {
+		if (!player.getInventory().insertStack(stack)) {
 			ItemEntity itemEntity = new ItemEntity(player.world, player.getPos().x, player.getPos().y, player.getPos().z,
 					stack);
 			player.world.spawnEntity(itemEntity);
