@@ -22,12 +22,13 @@
       "space.essem.image2map.Image2Map"
     ]
   },
+  "accessWidener": "image2map.accesswidener",
 
   "depends": {
     "fabricloader": ">=0.7.4",
     "fabric": "*"
   },
   "suggests": {
-    "minecraft": "1.17.x"
+    "minecraft": "1.18.x"
   }
 }

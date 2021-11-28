@@ -16,6 +16,7 @@ import net.minecraft.item.Items;
 import net.minecraft.item.map.MapState;
 import net.minecraft.nbt.NbtCompound;
 import net.minecraft.server.world.ServerWorld;
+import space.essem.image2map.Image2Map.DitherMode;
 
 import static space.essem.image2map.Image2Map.DitherMode;
 
@@ -49,7 +50,7 @@ public class MapRenderer {
         nbt.putByte("scale", (byte) 3);
         MapState state = MapState.fromNbt(nbt);
         world.putMapState(FilledMapItem.getMapName(id), state);
-        stack.getOrCreateTag().putInt("map", id);
+        stack.getOrCreateNbt().putInt("map", id);
 
         Image resizedImage = image.getScaledInstance(128, 128, Image.SCALE_DEFAULT);
         BufferedImage resized = convertToBufferedImage(resizedImage);
