@@ -146,8 +146,8 @@ public class Image2Map implements ModInitializer {
 				if (context.shouldMakePoster() && (context.getCountX() > 1 || context.getCountY() > 1)) {
 					BufferedImage posterImg = ImageUtils.scaleImage(ScaleMode.FIT, 1, 1, img);
 					ItemStack stack = createMap(source, context.getDither(), posterImg);
-					stack.putSubTag("i2mStoredMaps", maps);
-					NbtCompound stackDisplay = stack.getOrCreateSubTag("display");
+					stack.setSubNbt("i2mStoredMaps", maps);
+					NbtCompound stackDisplay = stack.getOrCreateSubNbt("display");
 					String path = context.getPath();
 					String fileName = ImageUtils.getImageName(path);
 					if (fileName == null)
