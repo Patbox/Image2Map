@@ -25,12 +25,12 @@ import me.sargunvohra.mcmods.autoconfig1u.AutoConfig;
 import me.sargunvohra.mcmods.autoconfig1u.serializer.GsonConfigSerializer;
 import net.minecraft.server.command.CommandManager;
 import net.minecraft.server.command.ServerCommandSource;
-import net.minecraft.text.LiteralText;
+import net.minecraft.text.Text;
 import net.minecraft.item.ItemStack;
 import net.minecraft.entity.ItemEntity;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.util.math.Vec3d;
-import net.fabricmc.fabric.api.command.v1.CommandRegistrationCallback;
+import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
 
 public class Image2Map implements ModInitializer {
     public static Image2MapConfig CONFIG = AutoConfig.register(Image2MapConfig.class, GsonConfigSerializer::new)
@@ -40,7 +40,7 @@ public class Image2Map implements ModInitializer {
     public void onInitialize() {
         System.out.println("Loading Image2Map...");
 
-        CommandRegistrationCallback.EVENT.register((dispatcher, dedicated) -> {
+        CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) -> {
             dispatcher.register(CommandManager.literal("mapcreate")
                     .requires(source -> source.hasPermissionLevel(CONFIG.minPermLevel))
                     .then(CommandManager.argument("mode", StringArgumentType.word()).suggests(new DitherModeSuggestionProvider())
@@ -87,7 +87,7 @@ public class Image2Map implements ModInitializer {
         }
         String input = StringArgumentType.getString(context, "path");
 
-        source.sendFeedback(new LiteralText("Generating image map..."), false);
+        source.sendFeedback(Text.of("Generating image map..."), false);
         BufferedImage image;
         try {
             if (isValid(input)) {
@@ -103,18 +103,18 @@ public class Image2Map implements ModInitializer {
                 image = null;
             }
         } catch (IOException e) {
-            source.sendFeedback(new LiteralText("That doesn't seem to be a valid image."), false);
+            source.sendFeedback(Text.of("That doesn't seem to be a valid image."), false);
             return 0;
         }
 
         if (image == null) {
-            source.sendFeedback(new LiteralText("That doesn't seem to be a valid image."), false);
+            source.sendFeedback(Text.of("That doesn't seem to be a valid image."), false);
             return 0;
         }
 
         ItemStack stack = MapRenderer.render(image, mode, source.getWorld(), pos.x, pos.z, player);
 
-        source.sendFeedback(new LiteralText("Done!"), false);
+        source.sendFeedback(Text.of("Done!"), false);
         if (!player.getInventory().insertStack(stack)) {
             ItemEntity itemEntity = new ItemEntity(player.world, player.getPos().x, player.getPos().y,
                     player.getPos().z, stack);

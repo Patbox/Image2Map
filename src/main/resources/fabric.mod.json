@@ -25,10 +25,10 @@
   "accessWidener": "image2map.accesswidener",
 
   "depends": {
-    "fabricloader": ">=0.7.4",
+    "fabricloader": ">=0.12.0",
     "fabric": "*"
   },
   "suggests": {
-    "minecraft": "1.18.x"
+    "minecraft": "1.19.x"
   }
 }
