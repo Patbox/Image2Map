@@ -20,6 +20,7 @@ import com.mojang.brigadier.exceptions.SimpleCommandExceptionType;
 import com.mojang.brigadier.suggestion.SuggestionProvider;
 import com.mojang.brigadier.suggestion.Suggestions;
 import com.mojang.brigadier.suggestion.SuggestionsBuilder;
+import com.mojang.logging.LogUtils;
 
 import me.sargunvohra.mcmods.autoconfig1u.AutoConfig;
 import me.sargunvohra.mcmods.autoconfig1u.serializer.GsonConfigSerializer;
@@ -31,10 +32,12 @@ import net.minecraft.entity.ItemEntity;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.util.math.Vec3d;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
+import org.slf4j.Logger;
 
 public class Image2Map implements ModInitializer {
     public static Image2MapConfig CONFIG = AutoConfig.register(Image2MapConfig.class, GsonConfigSerializer::new)
             .getConfig();
+    public static final Logger LOGGER = LogUtils.getLogger();
 
     @Override
     public void onInitialize() {
@@ -93,6 +96,9 @@ public class Image2Map implements ModInitializer {
             if (isValid(input)) {
                 URL url = new URL(input);
                 URLConnection connection = url.openConnection();
+                if (CONFIG.enableLogging) {
+                    LOGGER.info("[Image2Map] " + player.getEntityName() + " is printing URL: " + url);
+                }
                 connection.setRequestProperty("User-Agent", "Image2Map mod");
                 connection.connect();
                 image = ImageIO.read(connection.getInputStream());

@@ -11,4 +11,7 @@ public class Image2MapConfig implements ConfigData {
 
   @Comment(value = "Specifies the needed permission level to use the /mapcreate command")
   public int minPermLevel = 2;
+
+  @Comment(value = "When enabled, the server will log whenever a player creates a map.")
+  public boolean enableLogging = true;
 }
