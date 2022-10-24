@@ -1,24 +1,31 @@
 package space.essem.image2map.renderer;
 
-import java.awt.Color;
 import java.awt.Graphics2D;
 import java.awt.Image;
 import java.awt.image.BufferedImage;
 import java.awt.image.DataBufferByte;
-import java.util.Arrays;
-import java.util.Objects;
+import java.util.ArrayList;
+import java.util.List;
 
-import net.minecraft.block.MapColor;
+import eu.pb4.mapcanvas.api.core.CanvasColor;
+import eu.pb4.mapcanvas.api.core.CanvasImage;
+import eu.pb4.mapcanvas.api.utils.CanvasUtils;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.item.FilledMapItem;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
 import net.minecraft.item.map.MapState;
-import net.minecraft.nbt.NbtCompound;
+import net.minecraft.nbt.NbtList;
+import net.minecraft.nbt.NbtString;
 import net.minecraft.server.world.ServerWorld;
+import net.minecraft.text.Text;
+import net.minecraft.util.Formatting;
+import net.minecraft.util.Identifier;
+import net.minecraft.util.math.ColorHelper;
+import net.minecraft.util.math.MathHelper;
+import net.minecraft.util.registry.Registry;
+import net.minecraft.util.registry.RegistryKey;
 import space.essem.image2map.Image2Map.DitherMode;
-
-import static space.essem.image2map.Image2Map.DitherMode;
 
 public class MapRenderer {
     private static final double shadeCoeffs[] = { 0.71, 0.86, 1.0, 0.53 };
@@ -33,8 +40,70 @@ public class MapRenderer {
         return new double[] { color[0] * coeff, color[1] * coeff, color[2] * coeff };
     }
 
-    public static ItemStack render(BufferedImage image, DitherMode mode, ServerWorld world, double x, double z,
-            PlayerEntity player) {
+    public static CanvasImage render(BufferedImage image, DitherMode mode, int width, int height) {
+        Image resizedImage = image.getScaledInstance(width, height, Image.SCALE_DEFAULT);
+        BufferedImage resized = convertToBufferedImage(resizedImage);
+        int[][] pixels = convertPixelArray(resized);
+
+        var state = new CanvasImage(width, height);
+
+        for (int i = 0; i < width; i++) {
+            for (int j = 0; j < height; j++) {
+                if (mode.equals(DitherMode.FLOYD)) {
+                    state.set(i, j, floydDither(pixels, i, j, pixels[j][i]));
+                } else {
+                    state.set(i, j, CanvasUtils.findClosestColorARGB(pixels[j][i]));
+                }
+            }
+        }
+
+        return state;
+    }
+
+    public static List<ItemStack> toVanillaItems(CanvasImage image, ServerWorld world, String url) {
+        var xSections = MathHelper.ceil(image.getWidth() / 128d);
+        var ySections = MathHelper.ceil(image.getHeight() / 128d);
+
+        var xDelta = (xSections * 128 - image.getWidth()) / 2;
+        var yDelta = (ySections * 128 - image.getHeight()) / 2;
+
+        var items = new ArrayList<ItemStack>();
+
+        for (int ys = 0; ys < ySections; ys++) {
+            for (int xs = 0; xs < xSections; xs++) {
+                var id = world.getNextMapId();
+                var state = MapState.of(0, 0, (byte) 0, false, false, RegistryKey.of(Registry.WORLD_KEY, new Identifier("image2map", "generated")));
+
+                for (int xl = 0; xl < 128; xl++) {
+                    for (int yl = 0; yl < 128; yl++) {
+                        var x = xl + xs * 128 - xDelta;
+                        var y = yl + ys * 128 - yDelta;
+
+                        if (x >= 0 && y >= 0 && x < image.getWidth() && y < image.getHeight()) {
+                            state.colors[xl + yl * 128] = image.getRaw(x, y);
+                        }
+                    }
+                }
+
+                world.putMapState(FilledMapItem.getMapName(id), state);
+
+                var stack = new ItemStack(Items.FILLED_MAP);
+                stack.getOrCreateNbt().putInt("map", id);
+                var lore = new NbtList();
+                lore.add(NbtString.of(Text.Serializer.toJson(Text.literal(xs + " / " + ys).formatted(Formatting.GRAY))));
+                lore.add(NbtString.of(Text.Serializer.toJson(Text.literal(url))));
+                stack.getOrCreateNbt().putInt("image2map:x", xs);
+                stack.getOrCreateNbt().putInt("image2map:y", ys);
+                stack.getOrCreateSubNbt("display").put("Lore", lore);
+                items.add(stack);
+            }
+        }
+
+        return items;
+    }
+
+    /*public static ItemStack render(BufferedImage image, DitherMode mode, ServerWorld world, int width, int height,
+                                   PlayerEntity player) {
         // mojang removed the ability to set a map as locked via the "locked" field in
         // 1.17, so we create and apply our own MapState instead
         ItemStack stack = new ItemStack(Items.FILLED_MAP);
@@ -42,8 +111,8 @@ public class MapRenderer {
         NbtCompound nbt = new NbtCompound();
 
         nbt.putString("dimension", world.getRegistryKey().getValue().toString());
-        nbt.putInt("xCenter", (int) x);
-        nbt.putInt("zCenter", (int) z);
+        nbt.putInt("xCenter", (int) 0);
+        nbt.putInt("zCenter", (int) 0);
         nbt.putBoolean("locked", true);
         nbt.putBoolean("unlimitedTracking", false);
         nbt.putBoolean("trackingPosition", false);
@@ -71,60 +140,44 @@ public class MapRenderer {
             }
         }
         return stack;
+    }*/
+
+    private static int mapColorToRGBColor(CanvasColor color) {
+        var mcColor = color.getRgbColor();
+        double[] mcColorVec = { (double) ColorHelper.Argb.getRed(mcColor), (double) ColorHelper.Argb.getGreen(mcColor), (double) ColorHelper.Argb.getBlue(mcColor) };
+        double coeff = shadeCoeffs[color.getColor().id & 3];
+        return ColorHelper.Argb.getArgb(0, (int) (mcColorVec[0] * coeff), (int) (mcColorVec[1] * coeff), (int) (mcColorVec[2] * coeff));
     }
 
-    private static Color mapColorToRGBColor(MapColor[] colors, int color) {
-        Color mcColor = new Color(colors[color >> 2].color);
-        double[] mcColorVec = { (double) mcColor.getRed(), (double) mcColor.getGreen(), (double) mcColor.getBlue() };
-        double coeff = shadeCoeffs[color & 3];
-        return new Color((int) (mcColorVec[0] * coeff), (int) (mcColorVec[1] * coeff), (int) (mcColorVec[2] * coeff));
-    }
 
-    private static class NegatableColor {
-        public final int r;
-        public final int g;
-        public final int b;
+    private static CanvasColor floydDither(int[][] pixels, int x, int y, int imageColor) {
+        var closestColor = CanvasUtils.findClosestColorARGB(imageColor);
+        var palletedColor = mapColorToRGBColor(closestColor);
 
-        public NegatableColor(int r, int g, int b) {
-            this.r = r;
-            this.g = g;
-            this.b = b;
-        }
-    }
-
-    private static int floydDither(MapColor[] mapColors, int[][] pixels, int x, int y, Color imageColor) {
-        // double[] imageVec = { (double) imageColor.getRed() / 255.0, (double)
-        // imageColor.getGreen() / 255.0,
-        // (double) imageColor.getBlue() / 255.0 };
-        int colorIndex = nearestColor(mapColors, imageColor);
-        Color palletedColor = mapColorToRGBColor(mapColors, colorIndex);
-        NegatableColor error = new NegatableColor(imageColor.getRed() - palletedColor.getRed(),
-                imageColor.getGreen() - palletedColor.getGreen(), imageColor.getBlue() - palletedColor.getBlue());
+        var errorR = ColorHelper.Argb.getRed(imageColor) - ColorHelper.Argb.getRed(palletedColor);
+        var errorG = ColorHelper.Argb.getGreen(imageColor) - ColorHelper.Argb.getGreen(palletedColor);
+        var errorB = ColorHelper.Argb.getBlue(imageColor) - ColorHelper.Argb.getBlue(palletedColor);
         if (pixels[0].length > x + 1) {
-            Color pixelColor = new Color(pixels[y][x + 1], true);
-            pixels[y][x + 1] = applyError(pixelColor, error, 7.0 / 16.0);
+            pixels[y][x + 1] = applyError(pixels[y][x + 1], errorR, errorG, errorB, 7.0 / 16.0);
         }
         if (pixels.length > y + 1) {
             if (x > 0) {
-                Color pixelColor = new Color(pixels[y + 1][x - 1], true);
-                pixels[y + 1][x - 1] = applyError(pixelColor, error, 3.0 / 16.0);
+                pixels[y + 1][x - 1] = applyError(pixels[y + 1][x - 1], errorR, errorG, errorB, 3.0 / 16.0);
             }
-            Color pixelColor = new Color(pixels[y + 1][x], true);
-            pixels[y + 1][x] = applyError(pixelColor, error, 5.0 / 16.0);
+            pixels[y + 1][x] = applyError(pixels[y + 1][x], errorR, errorG, errorB, 5.0 / 16.0);
             if (pixels[0].length > x + 1) {
-                pixelColor = new Color(pixels[y + 1][x + 1], true);
-                pixels[y + 1][x + 1] = applyError(pixelColor, error, 1.0 / 16.0);
+                pixels[y + 1][x + 1] = applyError(pixels[y + 1][x + 1], errorR, errorG, errorB, 1.0 / 16.0);
             }
         }
 
-        return colorIndex;
+        return closestColor;
     }
 
-    private static int applyError(Color pixelColor, NegatableColor error, double quantConst) {
-        int pR = clamp(pixelColor.getRed() + (int) ((double) error.r * quantConst), 0, 255);
-        int pG = clamp(pixelColor.getGreen() + (int) ((double) error.g * quantConst), 0, 255);
-        int pB = clamp(pixelColor.getBlue() + (int) ((double) error.b * quantConst), 0, 255);
-        return new Color(pR, pG, pB, pixelColor.getAlpha()).getRGB();
+    private static int applyError(int pixelColor, int errorR, int errorG, int errorB, double quantConst) {
+        int pR = clamp( ColorHelper.Argb.getRed(pixelColor) + (int) ((double) errorR * quantConst), 0, 255);
+        int pG = clamp(ColorHelper.Argb.getGreen(pixelColor) + (int) ((double) errorG * quantConst), 0, 255);
+        int pB = clamp(ColorHelper.Argb.getBlue(pixelColor) + (int) ((double) errorB * quantConst), 0, 255);
+        return ColorHelper.Argb.getArgb(ColorHelper.Argb.getAlpha(pixelColor), pR, pG, pB);
     }
 
     private static int clamp(int i, int min, int max) {
@@ -135,31 +188,6 @@ public class MapRenderer {
         if (i > max)
             return max;
         return i;
-    }
-
-    private static int nearestColor(MapColor[] colors, Color imageColor) {
-        double[] imageVec = { (double) imageColor.getRed() / 255.0, (double) imageColor.getGreen() / 255.0,
-                (double) imageColor.getBlue() / 255.0 };
-        int best_color = 0;
-        double lowest_distance = 10000;
-        for (int k = 0; k < colors.length; k++) {
-            Color mcColor = new Color(colors[k].color);
-            double[] mcColorVec = { (double) mcColor.getRed() / 255.0, (double) mcColor.getGreen() / 255.0,
-                    (double) mcColor.getBlue() / 255.0 };
-            for (int shadeInd = 0; shadeInd < shadeCoeffs.length; shadeInd++) {
-                double distance = distance(imageVec, applyShade(mcColorVec, shadeInd));
-                if (distance < lowest_distance) {
-                    lowest_distance = distance;
-                    // todo: handle shading with alpha values other than 255
-                    if (k == 0 && imageColor.getAlpha() == 255) {
-                        best_color = 119;
-                    } else {
-                        best_color = k * shadeCoeffs.length + shadeInd;
-                    }
-                }
-            }
-        }
-        return best_color;
     }
 
     private static int[][] convertPixelArray(BufferedImage image) {

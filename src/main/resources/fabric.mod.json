@@ -6,7 +6,8 @@
   "name": "Image2Map",
   "description": "Turn images into maps!",
   "authors": [
-    "Essem"
+    "Essem",
+    "Patbox"
   ],
   "contact": {
     "homepage": "https://essem.space/",
@@ -23,12 +24,14 @@
     ]
   },
   "accessWidener": "image2map.accesswidener",
-
+  "mixins": [
+    "image2map.mixins.json"
+  ],
   "depends": {
     "fabricloader": ">=0.12.0",
     "fabric": "*"
   },
   "suggests": {
-    "minecraft": "1.19.x"
+    "minecraft": "1.19.2"
   }
 }

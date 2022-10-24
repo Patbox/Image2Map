@@ -12,6 +12,7 @@ group = project.maven_group
 
 repositories{
 	maven { url "https://maven.shedaniel.me/" }
+	maven { url "https://maven.nucleoid.xyz/" }
 }
 
 dependencies {
@@ -23,12 +24,8 @@ dependencies {
 	// Fabric API. This is technically optional, but you probably want it anyway.
 	modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
 
-	// PSA: Some older mods, compiled on Loom 0.2.1, might have outdated Maven POMs.
-	// You may need to force-disable transitiveness on them.
-	modApi("me.sargunvohra.mcmods:autoconfig1u:${project.autoconfig_version}") {
-		exclude(group: "net.fabricmc.fabric-api")
-	}
-	include "me.sargunvohra.mcmods:autoconfig1u:${project.autoconfig_version}"
+	modImplementation include("eu.pb4:map-canvas-api:${project.mapcanvas_version}")
+	modImplementation include("eu.pb4:sgui:${project.sgui_version}")
 }
 
 loom {
