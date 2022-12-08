@@ -4,6 +4,7 @@ import com.mojang.brigadier.ParseResults;
 import eu.pb4.sgui.virtual.VirtualScreenHandlerInterface;
 import net.minecraft.network.Packet;
 import net.minecraft.network.PacketCallbacks;
+import net.minecraft.network.message.LastSeenMessageList;
 import net.minecraft.network.packet.c2s.play.*;
 import net.minecraft.network.packet.s2c.play.EntityS2CPacket;
 import net.minecraft.server.MinecraftServer;
@@ -55,7 +56,7 @@ public abstract class ServerPlayNetworkHandlerMixin {
     }
 
     @Inject(method = "handleCommandExecution", at = @At("HEAD"), cancellable = true)
-    private void image2map$onCommandExecution(CommandExecutionC2SPacket packet, CallbackInfo ci) {
+    private void image2map$onCommandExecution(CommandExecutionC2SPacket packet, LastSeenMessageList lastSeenMessages, CallbackInfo ci) {
         if (this.player.currentScreenHandler instanceof VirtualScreenHandlerInterface handler && handler.getGui() instanceof MapGui computerGui) {
             computerGui.executeCommand(packet.command());
             ci.cancel();

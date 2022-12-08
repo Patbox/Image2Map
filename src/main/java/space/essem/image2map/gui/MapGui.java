@@ -66,7 +66,7 @@ public class MapGui extends HotbarGui {
         //this.cursor = null;//this.canvas.createIcon(MapIcon.Type.TARGET_POINT, true, this.cursorX, this.cursorY, (byte) 14, null);
         player.networkHandler.sendPacket(this.entity.createSpawnPacket());
 
-        player.networkHandler.sendPacket(new EntityTrackerUpdateS2CPacket(this.entity.getId(), this.entity.getDataTracker(), true));
+        player.networkHandler.sendPacket(new EntityTrackerUpdateS2CPacket(this.entity.getId(), this.entity.getDataTracker().getChangedEntries()));
         player.networkHandler.sendPacket(new SetCameraEntityS2CPacket(this.entity));
         //this.xRot = player.getYaw();
         //this.yRot = player.getPitch();
@@ -170,6 +170,11 @@ public class MapGui extends HotbarGui {
         this.cursorY = MathHelper.clamp(this.cursorY, 5, this.canvas.getHeight() * 2 - 5);
 
         //this.cursor.move(this.cursorX + 4, this.cursorY + 4, this.cursor.getRotation());*/
+    }
+
+    @Override
+    public boolean canPlayerClose() {
+        return false;
     }
 
     @Override

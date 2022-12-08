@@ -20,7 +20,6 @@ import space.essem.image2map.renderer.MapRenderer;
 
 import java.awt.image.BufferedImage;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
 
 public class PreviewGui extends MapGui {
     private static final CommandDispatcher<PreviewGui> COMMANDS = new CommandDispatcher<>();
