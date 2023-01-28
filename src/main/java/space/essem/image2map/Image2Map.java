@@ -335,8 +335,12 @@ public class Image2Map implements ModInitializer {
                     if (!entities.isEmpty()) {
                         var frame = entities.get(0);
 
-                        frame.setHeldItemStack(ItemStack.EMPTY, true);
-                        frame.setInvisible(false);
+                        // Only apply to frames that contain an image2map map
+                        var frameStack = frame.getHeldItemStack();
+                        if (frameStack.getItem() == Items.FILLED_MAP && tag != null && Arrays.stream(requiredTags).allMatch(tag::contains)) {
+                            frame.setHeldItemStack(ItemStack.EMPTY, true);
+                            frame.setInvisible(false);
+                        }
                     }
                 }
             }
