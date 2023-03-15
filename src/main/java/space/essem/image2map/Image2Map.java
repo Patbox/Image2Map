@@ -12,6 +12,8 @@ import com.mojang.logging.LogUtils;
 import eu.pb4.sgui.api.GuiHelpers;
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
+import net.minecraft.entity.Entity;
+import net.minecraft.entity.data.DataTracker;
 import net.minecraft.entity.decoration.ItemFrameEntity;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.item.ItemStack;
@@ -28,6 +30,8 @@ import net.minecraft.util.math.Box;
 import net.minecraft.util.math.Direction;
 import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.Vec3d;
+
+import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
 import space.essem.image2map.config.Image2MapConfig;
 import space.essem.image2map.gui.PreviewGui;
@@ -38,6 +42,7 @@ import java.awt.image.BufferedImage;
 import java.io.File;
 import java.net.URL;
 import java.net.URLConnection;
+import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
@@ -179,7 +184,6 @@ public class Image2Map implements ModInitializer {
                 height = image.getHeight();
             }
 
-
             int finalHeight = height;
             int finalWidth = width;
             source.sendFeedback(Text.literal("Converting into maps..."), false);
@@ -272,11 +276,71 @@ public class Image2Map implements ModInitializer {
                     var x = map.getNbt().getInt("image2map:x");
                     var y = map.getNbt().getInt("image2map:y");
 
+                    map.getNbt().putString("image2map:right", right.asString());
+                    map.getNbt().putString("image2map:down", down.asString());
+                    map.getNbt().putString("image2map:facing", facing.asString());
+
                     var frame = frames[x + y * width];
 
                     if (frame != null && frame.getHeldItemStack().isEmpty()) {
                         frame.setHeldItemStack(map);
                         frame.setRotation(rot);
+                        frame.setInvisible(true);
+                    }
+                }
+            }
+
+            stack.decrement(1);
+
+            return true;
+        }
+
+        return false;
+    }
+
+    public static boolean destroyItemFrame(Entity player, ItemFrameEntity itemFrameEntity) {
+        var stack = itemFrameEntity.getHeldItemStack();
+        var tag = stack.getNbt();
+
+        String[] requiredTags = new String[] { "image2map:x", "image2map:y", "image2map:width", "image2map:height",
+                "image2map:right", "image2map:down", "image2map:facing" };
+
+        if (stack.getItem() == Items.FILLED_MAP && tag != null && Arrays.stream(requiredTags).allMatch(tag::contains)) {
+            var xo = tag.getInt("image2map:x");
+            var yo = tag.getInt("image2map:y");
+            var width = tag.getInt("image2map:width");
+            var height = tag.getInt("image2map:height");
+
+            Direction right = Direction.byName(tag.getString("image2map:right"));
+            Direction down = Direction.byName(tag.getString("image2map:down"));
+            Direction facing = Direction.byName(tag.getString("image2map:facing"));
+
+            var world = itemFrameEntity.world;
+            var start = itemFrameEntity.getBlockPos();
+
+            var mut = start.mutableCopy();
+
+            mut.move(right, -xo);
+            mut.move(down, -yo);
+
+            start = mut.toImmutable();
+
+            for (var x = 0; x < width; x++) {
+                for (var y = 0; y < height; y++) {
+                    mut.set(start);
+                    mut.move(right, x);
+                    mut.move(down, y);
+                    var entities = world.getEntitiesByClass(ItemFrameEntity.class, Box.from(Vec3d.of(mut)),
+                            (entity1) -> entity1.getHorizontalFacing() == facing && entity1.getBlockPos().equals(mut));
+                    if (!entities.isEmpty()) {
+                        var frame = entities.get(0);
+
+                        // Only apply to frames that contain an image2map map
+                        var frameStack = frame.getHeldItemStack();
+                        if (frameStack.getItem() == Items.FILLED_MAP && tag != null && Arrays.stream(requiredTags).allMatch(tag::contains)) {
+                            frame.setHeldItemStack(ItemStack.EMPTY, true);
+                            frame.setInvisible(false);
+                        }
                     }
                 }
             }
@@ -286,7 +350,6 @@ public class Image2Map implements ModInitializer {
 
         return false;
     }
-
 
     private static boolean isValid(String url) {
         try {

@@ -10,7 +10,6 @@ import java.util.List;
 import eu.pb4.mapcanvas.api.core.CanvasColor;
 import eu.pb4.mapcanvas.api.core.CanvasImage;
 import eu.pb4.mapcanvas.api.utils.CanvasUtils;
-import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.item.FilledMapItem;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
@@ -94,6 +93,8 @@ public class MapRenderer {
                 lore.add(NbtString.of(Text.Serializer.toJson(Text.literal(url))));
                 stack.getOrCreateNbt().putInt("image2map:x", xs);
                 stack.getOrCreateNbt().putInt("image2map:y", ys);
+                stack.getOrCreateNbt().putInt("image2map:width", xSections);
+                stack.getOrCreateNbt().putInt("image2map:height", ySections);
                 stack.getOrCreateSubNbt("display").put("Lore", lore);
                 items.add(stack);
             }
@@ -148,7 +149,6 @@ public class MapRenderer {
         double coeff = shadeCoeffs[color.getColor().id & 3];
         return ColorHelper.Argb.getArgb(0, (int) (mcColorVec[0] * coeff), (int) (mcColorVec[1] * coeff), (int) (mcColorVec[2] * coeff));
     }
-
 
     private static CanvasColor floydDither(int[][] pixels, int x, int y, int imageColor) {
         var closestColor = CanvasUtils.findClosestColorARGB(imageColor);
