@@ -24,7 +24,7 @@ public class BundleItemMixin {
     ItemStack itemStack = user.getStackInHand(hand);
     var tag = itemStack.getNbt();
 
-    if (tag != null && tag.contains("image2map:quick_place")) {
+    if (tag != null && tag.contains("image2map:quick_place") && !user.isCreative()) {
       cir.setReturnValue(TypedActionResult.fail(itemStack));
       cir.cancel();
     }
@@ -35,7 +35,7 @@ public class BundleItemMixin {
       CallbackInfoReturnable<Boolean> cir) {
     var tag = bundle.getNbt();
 
-    if (tag != null && tag.contains("image2map:quick_place")) {
+    if (tag != null && tag.contains("image2map:quick_place") && !player.isCreative()) {
       cir.setReturnValue(false);
       cir.cancel();
     }
@@ -47,7 +47,7 @@ public class BundleItemMixin {
       CallbackInfoReturnable<Boolean> cir) {
     var tag = bundle.getNbt();
 
-    if (tag != null && tag.contains("image2map:quick_place")) {
+    if (tag != null && tag.contains("image2map:quick_place") && !player.isCreative()) {
       cir.setReturnValue(false);
       cir.cancel();
     }

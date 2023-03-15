@@ -14,11 +14,12 @@ import it.unimi.dsi.fastutil.ints.IntList;
 import net.minecraft.command.CommandSource;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.EntityType;
+import net.minecraft.entity.MovementType;
 import net.minecraft.entity.passive.HorseEntity;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
-import net.minecraft.network.Packet;
 import net.minecraft.network.PacketByteBuf;
+import net.minecraft.network.packet.Packet;
 import net.minecraft.network.packet.c2s.play.ClientCommandC2SPacket;
 import net.minecraft.network.packet.c2s.play.PlayerActionC2SPacket;
 import net.minecraft.network.packet.s2c.play.*;
@@ -28,6 +29,8 @@ import net.minecraft.util.math.Direction;
 import net.minecraft.util.math.Vec3d;
 import net.minecraft.world.GameMode;
 import java.util.Collections;
+import java.util.EnumSet;
+
 import org.jetbrains.annotations.Nullable;
 
 
@@ -145,7 +148,7 @@ public class MapGui extends HotbarGui {
             this.player.networkHandler.sendPacket(new EntitiesDestroyS2CPacket(this.additionalEntities));
         }
         this.player.networkHandler.sendPacket(new GameStateChangeS2CPacket(GameStateChangeS2CPacket.GAME_MODE_CHANGED, this.player.interactionManager.getGameMode().getId()));
-        this.player.networkHandler.sendPacket(new PlayerPositionLookS2CPacket(this.player.getX(), this.player.getY(), this.player.getZ(), this.player.getYaw(), this.player.getPitch(), Collections.emptySet(), 0, false));
+        this.player.networkHandler.sendPacket(new PlayerPositionLookS2CPacket(this.player.getX(), this.player.getY(), this.player.getZ(), this.player.getYaw(), this.player.getPitch(), EnumSet.noneOf(PositionFlag.class), 0));
 
         super.onClose();
     }

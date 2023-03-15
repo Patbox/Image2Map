@@ -35,8 +35,9 @@ public class ItemFrameEntityMixin {
         var frame = (ItemFrameEntity) (Object) this;
 
         if (!this.fixed && Image2Map.destroyItemFrame(entity, frame)) {
-            if (alwaysDrop)
+            if (alwaysDrop) {
                 frame.dropStack(new ItemStack(Items.ITEM_FRAME));
+            }
             ci.cancel();
         }
     }
