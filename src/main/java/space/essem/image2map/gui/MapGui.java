@@ -27,6 +27,7 @@ import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Direction;
 import net.minecraft.util.math.Vec3d;
 import net.minecraft.world.GameMode;
+import java.util.Collections;
 import org.jetbrains.annotations.Nullable;
 
 
@@ -144,7 +145,7 @@ public class MapGui extends HotbarGui {
             this.player.networkHandler.sendPacket(new EntitiesDestroyS2CPacket(this.additionalEntities));
         }
         this.player.networkHandler.sendPacket(new GameStateChangeS2CPacket(GameStateChangeS2CPacket.GAME_MODE_CHANGED, this.player.interactionManager.getGameMode().getId()));
-        this.player.networkHandler.sendPacket(new EntityPositionS2CPacket(this.player));
+        this.player.networkHandler.sendPacket(new PlayerPositionLookS2CPacket(this.player.getX(), this.player.getY(), this.player.getZ(), this.player.getYaw(), this.player.getPitch(), Collections.emptySet(), 0, false));
 
         super.onClose();
     }

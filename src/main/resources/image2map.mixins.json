@@ -5,10 +5,10 @@
   "mixins": [
     "ItemFrameEntityMixin",
     "PlayerEntityMixin",
-    "ServerPlayNetworkHandlerMixin"
+    "ServerPlayNetworkHandlerMixin",
+    "BundleItemMixin",
   ],
-  "server": [
-  ],
+  "server": [],
   "injectors": {
     "defaultRequire": 1
   }
