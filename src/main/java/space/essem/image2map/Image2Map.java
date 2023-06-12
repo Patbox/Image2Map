@@ -12,6 +12,7 @@ import com.mojang.logging.LogUtils;
 import eu.pb4.sgui.api.GuiHelpers;
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
+import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.data.DataTracker;
 import net.minecraft.entity.decoration.ItemFrameEntity;
@@ -82,17 +83,19 @@ public class Image2Map implements ModInitializer {
                     )
             );
         });
+
+        ServerLifecycleEvents.SERVER_STARTED.register((s) -> CardboardWarning.checkAndAnnounce());
     }
 
     private int openPreview(CommandContext<ServerCommandSource> context) throws CommandSyntaxException {
         ServerCommandSource source = context.getSource();
         String input = StringArgumentType.getString(context, "path");
 
-        source.sendFeedback(Text.literal("Getting image..."), false);
+        source.sendFeedback(() -> Text.literal("Getting image..."), false);
 
         getImage(input).orTimeout(60, TimeUnit.SECONDS).handleAsync((image, ex) -> {
             if (image == null || ex != null) {
-                source.sendFeedback(Text.literal("That doesn't seem to be a valid image!"), false);
+                source.sendFeedback(() -> Text.literal("That doesn't seem to be a valid image!"), false);
             }
 
             if (GuiHelpers.getCurrentGui(source.getPlayer()) instanceof PreviewGui previewGui) {
@@ -166,11 +169,11 @@ public class Image2Map implements ModInitializer {
 
         String input = StringArgumentType.getString(context, "path");
 
-        source.sendFeedback(Text.literal("Getting image..."), false);
+        source.sendFeedback(() -> Text.literal("Getting image..."), false);
 
         getImage(input).orTimeout(60, TimeUnit.SECONDS).handleAsync((image, ex) -> {
             if (image == null || ex != null) {
-                source.sendFeedback(Text.literal("That doesn't seem to be a valid image!"), false);
+                source.sendFeedback(() -> Text.literal("That doesn't seem to be a valid image!"), false);
             }
 
             int width;
@@ -186,12 +189,12 @@ public class Image2Map implements ModInitializer {
 
             int finalHeight = height;
             int finalWidth = width;
-            source.sendFeedback(Text.literal("Converting into maps..."), false);
+            source.sendFeedback(() -> Text.literal("Converting into maps..."), false);
 
             CompletableFuture.supplyAsync(() -> MapRenderer.render(image, mode, finalWidth, finalHeight)).thenAcceptAsync(mapImage -> {
                 var items = MapRenderer.toVanillaItems(mapImage, source.getWorld(), input);
                 giveToPlayer(player, items, input, finalWidth, finalHeight);
-                source.sendFeedback(Text.literal("Done!"), false);
+                source.sendFeedback(() -> Text.literal("Done!"), false);
             }, source.getServer());
             return null;
         }, source.getServer());
@@ -227,7 +230,7 @@ public class Image2Map implements ModInitializer {
         var stack = player.getStackInHand(hand);
 
         if (stack.hasNbt() && stack.isOf(Items.BUNDLE) && stack.getNbt().getBoolean("image2map:quick_place")) {
-            var world = itemFrameEntity.world;
+            var world = itemFrameEntity.getWorld();
             var start = itemFrameEntity.getBlockPos();
             var width = stack.getNbt().getInt("image2map:width");
             var height = stack.getNbt().getInt("image2map:height");
@@ -315,7 +318,7 @@ public class Image2Map implements ModInitializer {
             Direction down = Direction.byName(tag.getString("image2map:down"));
             Direction facing = Direction.byName(tag.getString("image2map:facing"));
 
-            var world = itemFrameEntity.world;
+            var world = itemFrameEntity.getWorld();
             var start = itemFrameEntity.getBlockPos();
 
             var mut = start.mutableCopy();

@@ -21,6 +21,9 @@
   "entrypoints": {
     "main": [
       "space.essem.image2map.Image2Map"
+    ],
+    "preLaunch": [
+      "space.essem.image2map.CardboardWarning"
     ]
   },
   "accessWidener": "image2map.accesswidener",

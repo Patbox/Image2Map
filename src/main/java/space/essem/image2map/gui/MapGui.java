@@ -57,7 +57,7 @@ public class MapGui extends HotbarGui {
         var pos = player.getBlockPos().withY(2048);
         this.pos = pos;
 
-        this.entity = new HorseEntity(EntityType.HORSE, player.world);
+        this.entity = new HorseEntity(EntityType.HORSE, player.getServerWorld());
         this.entity.setYaw(0);
         this.entity.setHeadYaw(0);
         this.entity.setNoGravity(true);

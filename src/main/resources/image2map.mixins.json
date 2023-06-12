@@ -6,7 +6,7 @@
     "ItemFrameEntityMixin",
     "PlayerEntityMixin",
     "ServerPlayNetworkHandlerMixin",
-    "BundleItemMixin",
+    "BundleItemMixin"
   ],
   "server": [],
   "injectors": {
