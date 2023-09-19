@@ -86,3 +86,21 @@ publishing {
 		// retrieving dependencies.
 	}
 }
+
+if (System.getenv("MODRINTH")) {
+	modrinth {
+		token = System.getenv("MODRINTH")
+		projectId = '13RpG7dA'
+		versionNumber = "" + version
+		versionType = "release"
+		changelog = System.getenv("CHANGELOG")
+		// On fabric, use 'remapJar' instead of 'jar'
+		uploadFile = remapJar
+		gameVersions = [((String) project.minecraft_version)]
+		loaders = ["fabric", "quilt"]
+	}
+
+	remapJar {
+		finalizedBy project.tasks.modrinth
+	}
+}

@@ -1,10 +1,13 @@
 package space.essem.image2map.mixin;
 
 import eu.pb4.sgui.virtual.VirtualScreenHandlerInterface;
+import net.minecraft.network.ClientConnection;
 import net.minecraft.network.message.LastSeenMessageList;
 import net.minecraft.network.packet.Packet;
 import net.minecraft.network.packet.c2s.play.*;
 import net.minecraft.server.MinecraftServer;
+import net.minecraft.server.network.ConnectedClientData;
+import net.minecraft.server.network.ServerCommonNetworkHandler;
 import net.minecraft.server.network.ServerPlayNetworkHandler;
 import net.minecraft.server.network.ServerPlayerEntity;
 import org.spongepowered.asm.mixin.Final;
@@ -17,13 +20,13 @@ import space.essem.image2map.gui.MapGui;
 
 
 @Mixin(ServerPlayNetworkHandler.class)
-public abstract class ServerPlayNetworkHandlerMixin {
+public abstract class ServerPlayNetworkHandlerMixin extends ServerCommonNetworkHandler {
     @Shadow
     public ServerPlayerEntity player;
 
-    @Shadow
-    @Final
-    private MinecraftServer server;
+    public ServerPlayNetworkHandlerMixin(MinecraftServer server, ClientConnection connection, ConnectedClientData clientData) {
+        super(server, connection, clientData);
+    }
 
     /*@Inject(method = "onPlayerMove", at = @At("HEAD"), cancellable = true)
     private void image2map$onMove(PlayerMoveC2SPacket packet, CallbackInfo ci) {
