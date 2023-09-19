@@ -30,10 +30,7 @@ jobs:
         if: ${{ runner.os != 'Windows' }}
         run: chmod +x ./gradlew
       - name: Build and publish with Gradle
-        run: ./gradlew build publish
-        env:
-          MODRINTH: ${{ secrets.MODRINTH }}
-          CHANGELOG: ${{ github.event.release.body }}
+        run: ./gradlew build
       - name: capture build artifacts
         if: ${{ runner.os == 'Linux' && matrix.java == '17' }} # Only upload artifacts built from latest java on one OS
         uses: actions/upload-artifact@v2
