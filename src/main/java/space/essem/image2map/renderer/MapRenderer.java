@@ -6,7 +6,6 @@ import java.awt.image.BufferedImage;
 import java.awt.image.DataBufferByte;
 import java.util.ArrayList;
 import java.util.List;
-
 import eu.pb4.mapcanvas.api.core.CanvasColor;
 import eu.pb4.mapcanvas.api.core.CanvasImage;
 import eu.pb4.mapcanvas.api.utils.CanvasUtils;
@@ -90,8 +89,8 @@ public class MapRenderer {
                 var stack = new ItemStack(Items.FILLED_MAP);
                 stack.getOrCreateNbt().putInt("map", id);
                 var lore = new NbtList();
-                lore.add(NbtString.of(Text.Serializer.toJson(Text.literal(xs + " / " + ys).formatted(Formatting.GRAY))));
-                lore.add(NbtString.of(Text.Serializer.toJson(Text.literal(url))));
+                lore.add(NbtString.of(Text.Serialization.toJsonString(Text.literal(xs + " / " + ys).formatted(Formatting.GRAY))));
+                lore.add(NbtString.of(Text.Serialization.toJsonString(Text.literal(url))));
                 stack.getOrCreateNbt().putInt("image2map:x", xs);
                 stack.getOrCreateNbt().putInt("image2map:y", ys);
                 stack.getOrCreateNbt().putInt("image2map:width", xSections);
