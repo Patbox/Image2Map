@@ -15,6 +15,7 @@ import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.minecraft.entity.Entity;
+import net.minecraft.entity.ItemEntity;
 import net.minecraft.entity.decoration.ItemFrameEntity;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.entity.player.PlayerInventory;
@@ -255,6 +256,15 @@ public class Image2Map implements ModInitializer {
    
     }
 
+    private static void giveItemStackToPlayer(ItemStack itemStack, PlayerEntity player) {
+        if (player.getInventory().getEmptySlot() == -1) {
+            player.dropStack(itemStack);
+        }
+        else {
+            player.giveItemStack(itemStack);
+        }
+    }
+
     public static void giveToPlayer(PlayerEntity player, List<ItemStack> items, String input, int width, int height, Boolean useBundle) {
         if (!player.getAbilities().creativeMode) {
             PlayerInventory inventory = player.getInventory();
@@ -278,13 +288,13 @@ public class Image2Map implements ModInitializer {
 
         if (!useBundle) {
             for (ItemStack item:items) {
-                player.giveItemStack(item);
+                giveItemStackToPlayer(item, player);
             }
             return;
         }
 
         if (items.size() == 1) {
-            player.giveItemStack(items.get(0));
+            giveItemStackToPlayer(items.get(0), player);
         } else {
             var bundle = new ItemStack(Items.BUNDLE);
             var list = new NbtList();
@@ -302,7 +312,7 @@ public class Image2Map implements ModInitializer {
             bundle.getOrCreateSubNbt("display").put("Lore", lore);
             bundle.setCustomName(Text.literal("Maps").formatted(Formatting.GOLD));
 
-            player.giveItemStack(bundle);
+            giveItemStackToPlayer(bundle, player);
         }
     }
 
