@@ -18,6 +18,8 @@ public class Image2MapConfig {
 
   public int minPermLevel = 2;
 
+  public boolean allowSurvivalMode = true;
+
 
   public static Image2MapConfig loadOrCreateConfig() {
     try {

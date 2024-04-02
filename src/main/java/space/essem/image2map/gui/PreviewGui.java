@@ -33,6 +33,7 @@ public class PreviewGui extends MapGui {
     private Image2Map.DitherMode ditherMode;
     private int width;
     private int height;
+    private boolean useBundle = true;
     private boolean grid = true;
     private CompletableFuture<CanvasImage> imageProcessing;
 
@@ -149,6 +150,18 @@ public class PreviewGui extends MapGui {
         this.updateImage();
     }
 
+    public void setSize(int size) {
+        int sourceWidth = this.sourceImage.getWidth();
+        int sourceHeight = this.sourceImage.getHeight();
+        size = size > 8 ? 8*128 : size*128;
+
+        if (sourceWidth > sourceHeight) {
+            setSize(size, sourceHeight*size / sourceWidth);
+        } else {
+            setSize(sourceWidth*size / sourceHeight, size);
+        }
+    }
+
     public void setDitherMode(Image2Map.DitherMode ditherMode) {
         this.ditherMode = ditherMode;
         this.updateImage();
@@ -157,6 +170,10 @@ public class PreviewGui extends MapGui {
     public void setDrawGrid(boolean grid) {
         this.grid = grid;
         this.draw();
+    }
+
+    public void setUseBundle(boolean useBundle) {
+        this.useBundle = useBundle;
     }
 
     @Override
@@ -187,7 +204,7 @@ public class PreviewGui extends MapGui {
                 x.getSource().drawLoading();
                 Image2Map.giveToPlayer(x.getSource().player,
                         MapRenderer.toVanillaItems(x.getSource().image, x.getSource().player.getServerWorld(), x.getSource().source),
-                        x.getSource().source, x.getSource().width, x.getSource().height);
+                        x.getSource().source, x.getSource().width, x.getSource().height, x.getSource().useBundle);
 
                 x.getSource().close();
             } else {
@@ -230,6 +247,26 @@ public class PreviewGui extends MapGui {
                     return 0;
                 })
         );
+
+        COMMANDS.register(literal("bundle")
+                .then(argument("value", BoolArgumentType.bool()).executes(x -> {
+                    x.getSource().setUseBundle(BoolArgumentType.getBool(x, "value"));
+                    return 0;
+                }))
+        );
+
+        COMMANDS.register(literal("normalize")
+            .then(argument("value", IntegerArgumentType.integer(1)).executes(x -> {
+                        x.getSource().setSize(IntegerArgumentType.getInteger(x, "value"));
+                        return 0;
+                    }))
+            .executes(x -> {
+                x.getSource().player.sendMessage(Text.literal("Source: " + x.getSource().sourceImage.getWidth() + " x " + x.getSource().sourceImage.getHeight()));
+                x.getSource().player.sendMessage(Text.literal("MapImage: " + x.getSource().width + " x " + x.getSource().height));
+                return 0;
+            })
+        );
+
     }
 
 }

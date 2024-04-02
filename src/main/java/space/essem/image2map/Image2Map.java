@@ -2,6 +2,7 @@ package space.essem.image2map;
 
 import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.arguments.StringArgumentType;
+import com.mojang.brigadier.arguments.BoolArgumentType;
 import com.mojang.brigadier.context.CommandContext;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import com.mojang.brigadier.exceptions.SimpleCommandExceptionType;
@@ -14,9 +15,11 @@ import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.minecraft.entity.Entity;
-import net.minecraft.entity.data.DataTracker;
 import net.minecraft.entity.decoration.ItemFrameEntity;
 import net.minecraft.entity.player.PlayerEntity;
+import net.minecraft.entity.player.PlayerInventory;
+import net.minecraft.inventory.Inventory;
+import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
 import net.minecraft.nbt.NbtCompound;
@@ -32,7 +35,6 @@ import net.minecraft.util.math.Direction;
 import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.Vec3d;
 
-import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
 import space.essem.image2map.config.Image2MapConfig;
 import space.essem.image2map.gui.PreviewGui;
@@ -62,8 +64,16 @@ public class Image2Map implements ModInitializer {
             dispatcher.register(literal("image2map")
                     .requires(source -> source.hasPermissionLevel(CONFIG.minPermLevel))
                     .then(literal("create")
-                            .then(argument("width", IntegerArgumentType.integer(1))
-                                    .then(argument("height", IntegerArgumentType.integer(1))
+                            .then(argument("bundle", BoolArgumentType.bool())
+                                    .then(argument("width", IntegerArgumentType.integer(1))
+                                            .then(argument("height", IntegerArgumentType.integer(1))
+                                                    .then(argument("mode", StringArgumentType.word()).suggests(new DitherModeSuggestionProvider())
+                                                            .then(argument("path", StringArgumentType.greedyString())
+                                                                    .executes(this::createMap))
+                                                    )
+                                            )
+                                    )
+                                    .then(argument("normalize", IntegerArgumentType.integer(1))
                                             .then(argument("mode", StringArgumentType.word()).suggests(new DitherModeSuggestionProvider())
                                                     .then(argument("path", StringArgumentType.greedyString())
                                                             .executes(this::createMap))
@@ -155,10 +165,15 @@ public class Image2Map implements ModInitializer {
         });
     }
 
-    private int createMap(CommandContext<ServerCommandSource> context) throws CommandSyntaxException {
+    private int createMap(CommandContext<ServerCommandSource> context) throws CommandSyntaxException {        
         ServerCommandSource source = context.getSource();
 
         PlayerEntity player = source.getPlayer();
+
+        if (!CONFIG.allowSurvivalMode && !player.getAbilities().creativeMode) {
+            player.sendMessage(Text.literal("You are not allowed to use this command.").formatted(Formatting.RED));
+        }
+
         DitherMode mode;
         String modeStr = StringArgumentType.getString(context, "mode");
         try {
@@ -184,7 +199,19 @@ public class Image2Map implements ModInitializer {
                 height = IntegerArgumentType.getInteger(context, "height");
             } catch (Throwable e) {
                 width = image.getWidth();
-                height = image.getHeight();
+                height = image.getHeight();                
+                try {
+                    int size = IntegerArgumentType.getInteger(context, "normalize");
+                    size = size > 8 ? 8*128 : size*128;
+
+                    if (width > height) {
+                        height = height*size / width;
+                        width = size;
+                    } else {
+                        width = width*size / height;
+                        height = size;
+                    }
+                } catch (Throwable e2) {}
             }
 
             int finalHeight = height;
@@ -193,8 +220,13 @@ public class Image2Map implements ModInitializer {
 
             CompletableFuture.supplyAsync(() -> MapRenderer.render(image, mode, finalWidth, finalHeight)).thenAcceptAsync(mapImage -> {
                 var items = MapRenderer.toVanillaItems(mapImage, source.getWorld(), input);
-                giveToPlayer(player, items, input, finalWidth, finalHeight);
-                source.sendFeedback(() -> Text.literal("Done!"), false);
+                boolean useBundle = true;
+                try {
+                    useBundle = BoolArgumentType.getBool(context, "bundle");
+                } catch (Throwable e2) {}
+
+                giveToPlayer(player, items, input, finalWidth, finalHeight, useBundle);
+                source.sendFeedback(() -> Text.literal("Done!"), false);    
             }, source.getServer());
             return null;
         }, source.getServer());
@@ -202,7 +234,55 @@ public class Image2Map implements ModInitializer {
         return 1;
     }
 
-    public static void giveToPlayer(PlayerEntity player, List<ItemStack> items, String input, int width, int height) {
+    private static void removeItems(Item item, int count, Inventory inventory) {
+        int countRemains = count;   
+        for(int j = 0; j < inventory.size(); ++j) {
+            ItemStack itemStack = inventory.getStack(j);
+            if (itemStack.getItem().equals(item)) {
+                int numberToRemove = Math.min(itemStack.getCount(), countRemains);
+                countRemains -= numberToRemove;
+                itemStack.decrement(numberToRemove);
+
+                if (countRemains == 0) break;
+            }
+        }    
+    }
+
+    private static boolean containsItem(Item item, Inventory inventory) {
+        return inventory.containsAny((stack) -> {
+            return !stack.isEmpty() && item.equals(stack.getItem());
+         });
+   
+    }
+
+    public static void giveToPlayer(PlayerEntity player, List<ItemStack> items, String input, int width, int height, Boolean useBundle) {
+        if (!player.getAbilities().creativeMode) {
+            PlayerInventory inventory = player.getInventory();
+            if (inventory.count(Items.MAP) < items.size()) {
+                player.sendMessage(Text.literal("You need to hold "+items.size()+" empty maps.").formatted(Formatting.RED));
+                return;
+            } else {
+                removeItems(Items.MAP, items.size(), inventory);
+            }
+            
+            if (useBundle) {
+                if (!containsItem(Items.BUNDLE, inventory)) {
+                    player.sendMessage(Text.literal("You need to hold an empty bundle").formatted(Formatting.RED));
+                    return;
+                }
+                else {
+                    removeItems(Items.BUNDLE, 1, inventory);
+                }
+            }
+        }
+
+        if (!useBundle) {
+            for (ItemStack item:items) {
+                player.giveItemStack(item);
+            }
+            return;
+        }
+
         if (items.size() == 1) {
             player.giveItemStack(items.get(0));
         } else {
