@@ -100,6 +100,13 @@ public class Image2Map implements ModInitializer {
 
     private int openPreview(CommandContext<ServerCommandSource> context) throws CommandSyntaxException {
         ServerCommandSource source = context.getSource();
+
+        PlayerEntity player = source.getPlayer();
+        if (!CONFIG.allowSurvivalMode && !player.getAbilities().creativeMode) {
+            player.sendMessage(Text.literal("You are not allowed to use this command.").formatted(Formatting.RED));
+            return 1;
+        }
+
         String input = StringArgumentType.getString(context, "path");
 
         source.sendFeedback(() -> Text.literal("Getting image..."), false);
@@ -173,6 +180,7 @@ public class Image2Map implements ModInitializer {
 
         if (!CONFIG.allowSurvivalMode && !player.getAbilities().creativeMode) {
             player.sendMessage(Text.literal("You are not allowed to use this command.").formatted(Formatting.RED));
+            return 1;
         }
 
         DitherMode mode;
