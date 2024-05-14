@@ -27,11 +27,13 @@ import net.minecraft.server.command.ServerCommandSource;
 import net.minecraft.text.Text;
 import net.minecraft.util.Formatting;
 import net.minecraft.util.Hand;
+import net.minecraft.util.math.BlockPos;
+import net.minecraft.util.math.BlockPos.Mutable;
 import net.minecraft.util.math.Box;
 import net.minecraft.util.math.Direction;
 import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.Vec3d;
-
+import net.minecraft.world.World;
 import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
 import space.essem.image2map.config.Image2MapConfig;
@@ -50,6 +52,7 @@ import java.util.concurrent.TimeUnit;
 
 import static net.minecraft.server.command.CommandManager.argument;
 import static net.minecraft.server.command.CommandManager.literal;
+
 
 public class Image2Map implements ModInitializer {
     public static final Logger LOGGER = LogUtils.getLogger();
@@ -218,7 +221,7 @@ public class Image2Map implements ModInitializer {
             bundle.getOrCreateNbt().putInt("image2map:height", MathHelper.ceil(height / 128d));
 
             var lore = new NbtList();
-            lore.add(NbtString.of(Text.Serializer.toJson(Text.literal(input))));
+            lore.add(NbtString.of(Text.Serialization.toJsonString(Text.literal(input))));
             bundle.getOrCreateSubNbt("display").put("Lore", lore);
             bundle.setCustomName(Text.literal("Maps").formatted(Formatting.GOLD));
 
