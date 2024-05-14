@@ -9,6 +9,10 @@ import java.util.List;
 import eu.pb4.mapcanvas.api.core.CanvasColor;
 import eu.pb4.mapcanvas.api.core.CanvasImage;
 import eu.pb4.mapcanvas.api.utils.CanvasUtils;
+import net.minecraft.component.DataComponentTypes;
+import net.minecraft.component.type.LoreComponent;
+import net.minecraft.component.type.MapIdComponent;
+import net.minecraft.component.type.NbtComponent;
 import net.minecraft.item.FilledMapItem;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
@@ -25,6 +29,7 @@ import net.minecraft.util.Identifier;
 import net.minecraft.util.math.ColorHelper;
 import net.minecraft.util.math.MathHelper;
 import space.essem.image2map.Image2Map.DitherMode;
+import space.essem.image2map.ImageData;
 
 public class MapRenderer {
     private static final double shadeCoeffs[] = { 0.71, 0.86, 1.0, 0.53 };
@@ -84,18 +89,16 @@ public class MapRenderer {
                     }
                 }
 
-                world.putMapState(FilledMapItem.getMapName(id), state);
+                world.putMapState(id, state);
 
                 var stack = new ItemStack(Items.FILLED_MAP);
-                stack.getOrCreateNbt().putInt("map", id);
-                var lore = new NbtList();
-                lore.add(NbtString.of(Text.Serialization.toJsonString(Text.literal(xs + " / " + ys).formatted(Formatting.GRAY))));
-                lore.add(NbtString.of(Text.Serialization.toJsonString(Text.literal(url))));
-                stack.getOrCreateNbt().putInt("image2map:x", xs);
-                stack.getOrCreateNbt().putInt("image2map:y", ys);
-                stack.getOrCreateNbt().putInt("image2map:width", xSections);
-                stack.getOrCreateNbt().putInt("image2map:height", ySections);
-                stack.getOrCreateSubNbt("display").put("Lore", lore);
+                stack.set(DataComponentTypes.MAP_ID, id);
+                var data = ImageData.ofSimple(xs, ys, xSections, ySections);
+                stack.apply(DataComponentTypes.CUSTOM_DATA, NbtComponent.DEFAULT, x -> x.with(ImageData.CODEC, data).getOrThrow());
+                stack.set(DataComponentTypes.LORE, new LoreComponent(List.of(
+                        Text.literal(xs + " / " + ys).formatted(Formatting.GRAY),
+                        Text.literal(url)
+                )));
                 items.add(stack);
             }
         }

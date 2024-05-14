@@ -3,10 +3,11 @@
   "package": "space.essem.image2map.mixin",
   "compatibilityLevel": "JAVA_17",
   "mixins": [
+    "BundleItemMixin",
+    "EntityPassengersSetS2CPacketAccessor",
     "ItemFrameEntityMixin",
     "PlayerEntityMixin",
-    "ServerPlayNetworkHandlerMixin",
-    "BundleItemMixin"
+    "ServerPlayNetworkHandlerMixin"
   ],
   "server": [],
   "injectors": {

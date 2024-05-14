@@ -1,5 +1,6 @@
 package space.essem.image2map.mixin;
 
+import net.minecraft.component.DataComponentTypes;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
@@ -23,7 +24,7 @@ public class BundleItemMixin {
   private void image2map$useBundle(World world, PlayerEntity user, Hand hand,
       CallbackInfoReturnable<TypedActionResult<ItemStack>> cir) {
     ItemStack itemStack = user.getStackInHand(hand);
-    var tag = itemStack.getNbt();
+    var tag = itemStack.get(DataComponentTypes.CUSTOM_DATA);
 
     if (tag != null && tag.contains("image2map:quick_place") && !user.isCreative()) {
       cir.setReturnValue(TypedActionResult.fail(itemStack));
@@ -34,7 +35,7 @@ public class BundleItemMixin {
   @Inject(method = "onStackClicked", at = @At("HEAD"), cancellable = true)
   private void image2map$addBundleItems(ItemStack bundle, Slot slot, ClickType clickType, PlayerEntity player,
       CallbackInfoReturnable<Boolean> cir) {
-    var tag = bundle.getNbt();
+    var tag = bundle.get(DataComponentTypes.CUSTOM_DATA);
 
     if (tag != null && tag.contains("image2map:quick_place") && !player.isCreative()) {
       cir.setReturnValue(false);
@@ -46,7 +47,7 @@ public class BundleItemMixin {
   private void image2map$removeBundleItems(ItemStack bundle, ItemStack otherStack, Slot slot, ClickType clickType,
       PlayerEntity player, StackReference cursorStackReference,
       CallbackInfoReturnable<Boolean> cir) {
-    var tag = bundle.getNbt();
+    var tag = bundle.get(DataComponentTypes.CUSTOM_DATA);
 
     if (tag != null && tag.contains("image2map:quick_place") && !player.isCreative()) {
       cir.setReturnValue(false);

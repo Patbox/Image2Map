@@ -32,6 +32,7 @@ import java.util.Collections;
 import java.util.EnumSet;
 
 import org.jetbrains.annotations.Nullable;
+import space.essem.image2map.mixin.EntityPassengersSetS2CPacketAccessor;
 
 
 public class MapGui extends HotbarGui {
@@ -77,7 +78,7 @@ public class MapGui extends HotbarGui {
         var buf = new PacketByteBuf(Unpooled.buffer());
         buf.writeVarInt(this.entity.getId());
         buf.writeIntArray(new int[]{player.getId()});
-        player.networkHandler.sendPacket(new EntityPassengersSetS2CPacket(buf));
+        player.networkHandler.sendPacket(EntityPassengersSetS2CPacketAccessor.createEntityPassengersSetS2CPacket(buf));
         player.networkHandler.sendPacket(new GameStateChangeS2CPacket(GameStateChangeS2CPacket.GAME_MODE_CHANGED, GameMode.SPECTATOR.getId()));
         player.networkHandler.sendPacket(new EntityS2CPacket.Rotate(player.getId(), (byte) 0, (byte) 0, player.isOnGround()));
 

@@ -53,10 +53,10 @@ public abstract class ServerPlayNetworkHandlerMixin extends ServerCommonNetworkH
         }
     }
 
-    @Inject(method = "handleCommandExecution", at = @At("HEAD"), cancellable = true)
-    private void image2map$onCommandExecution(CommandExecutionC2SPacket packet, LastSeenMessageList lastSeenMessages, CallbackInfo ci) {
+    @Inject(method = "executeCommand", at = @At("HEAD"), cancellable = true)
+    private void image2map$onCommandExecution(String command, CallbackInfo ci) {
         if (this.player.currentScreenHandler instanceof VirtualScreenHandlerInterface handler && handler.getGui() instanceof MapGui computerGui) {
-            computerGui.executeCommand(packet.command());
+            computerGui.executeCommand(command);
             ci.cancel();
         }
     }

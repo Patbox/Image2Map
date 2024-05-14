@@ -13,6 +13,10 @@ import eu.pb4.sgui.api.GuiHelpers;
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
+import net.minecraft.component.DataComponentTypes;
+import net.minecraft.component.type.BundleContentsComponent;
+import net.minecraft.component.type.LoreComponent;
+import net.minecraft.component.type.NbtComponent;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.data.DataTracker;
 import net.minecraft.entity.decoration.ItemFrameEntity;
@@ -45,7 +49,6 @@ import java.awt.image.BufferedImage;
 import java.io.File;
 import java.net.URL;
 import java.net.URLConnection;
-import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
@@ -210,20 +213,12 @@ public class Image2Map implements ModInitializer {
             player.giveItemStack(items.get(0));
         } else {
             var bundle = new ItemStack(Items.BUNDLE);
-            var list = new NbtList();
+            bundle.set(DataComponentTypes.BUNDLE_CONTENTS, new BundleContentsComponent(items));
+            bundle.set(DataComponentTypes.CUSTOM_DATA, NbtComponent.DEFAULT.with(ImageData.CODEC,
+                    ImageData.ofBundle(MathHelper.ceil(width / 128d), MathHelper.ceil(height / 128d))).getOrThrow());
 
-            for (var item : items) {
-                list.add(item.writeNbt(new NbtCompound()));
-            }
-            bundle.getOrCreateNbt().put("Items", list);
-            bundle.getOrCreateNbt().putBoolean("image2map:quick_place", true);
-            bundle.getOrCreateNbt().putInt("image2map:width", MathHelper.ceil(width / 128d));
-            bundle.getOrCreateNbt().putInt("image2map:height", MathHelper.ceil(height / 128d));
-
-            var lore = new NbtList();
-            lore.add(NbtString.of(Text.Serialization.toJsonString(Text.literal(input))));
-            bundle.getOrCreateSubNbt("display").put("Lore", lore);
-            bundle.setCustomName(Text.literal("Maps").formatted(Formatting.GOLD));
+            bundle.set(DataComponentTypes.LORE, new LoreComponent(List.of(Text.literal(input))));
+            bundle.set(DataComponentTypes.ITEM_NAME, Text.literal("Maps").formatted(Formatting.GOLD));
 
             player.giveItemStack(bundle);
         }
@@ -231,12 +226,13 @@ public class Image2Map implements ModInitializer {
 
     public static boolean clickItemFrame(PlayerEntity player, Hand hand, ItemFrameEntity itemFrameEntity) {
         var stack = player.getStackInHand(hand);
+        var bundleData = stack.getOrDefault(DataComponentTypes.CUSTOM_DATA, NbtComponent.DEFAULT).get(ImageData.CODEC);
 
-        if (stack.hasNbt() && stack.isOf(Items.BUNDLE) && stack.getNbt().getBoolean("image2map:quick_place")) {
+        if (stack.isOf(Items.BUNDLE) && bundleData.isSuccess() && bundleData.getOrThrow().quickPlace()) {
             var world = itemFrameEntity.getWorld();
             var start = itemFrameEntity.getBlockPos();
-            var width = stack.getNbt().getInt("image2map:width");
-            var height = stack.getNbt().getInt("image2map:height");
+            var width = bundleData.getOrThrow().width();
+            var height = bundleData.getOrThrow().height();
 
             var frames = new ItemFrameEntity[width * height];
 
@@ -275,18 +271,15 @@ public class Image2Map implements ModInitializer {
                 }
             }
 
-            for (var nbt : stack.getNbt().getList("Items", NbtElement.COMPOUND_TYPE)) {
-                var map = ItemStack.fromNbt((NbtCompound) nbt);
+            for (var map : stack.getOrDefault(DataComponentTypes.BUNDLE_CONTENTS, BundleContentsComponent.DEFAULT).iterate()) {
+                var mapData = map.getOrDefault(DataComponentTypes.CUSTOM_DATA, NbtComponent.DEFAULT).get(ImageData.CODEC);
 
-                if (map.hasNbt()) {
-                    var x = map.getNbt().getInt("image2map:x");
-                    var y = map.getNbt().getInt("image2map:y");
+                if (mapData.isSuccess() && mapData.getOrThrow().isReal()) {
+                    map = map.copy();
+                    var newData = mapData.getOrThrow().withDirection(right, down, facing);
+                    map.apply(DataComponentTypes.CUSTOM_DATA, NbtComponent.DEFAULT, x -> x.with(ImageData.CODEC, newData).getOrThrow());
 
-                    map.getNbt().putString("image2map:right", right.asString());
-                    map.getNbt().putString("image2map:down", down.asString());
-                    map.getNbt().putString("image2map:facing", facing.asString());
-
-                    var frame = frames[x + y * width];
+                    var frame = frames[mapData.getOrThrow().x() + mapData.getOrThrow().y() * width];
 
                     if (frame != null && frame.getHeldItemStack().isEmpty()) {
                         frame.setHeldItemStack(map);
@@ -306,20 +299,19 @@ public class Image2Map implements ModInitializer {
 
     public static boolean destroyItemFrame(Entity player, ItemFrameEntity itemFrameEntity) {
         var stack = itemFrameEntity.getHeldItemStack();
-        var tag = stack.getNbt();
+        var tag = stack.getOrDefault(DataComponentTypes.CUSTOM_DATA, NbtComponent.DEFAULT).get(ImageData.CODEC);
 
-        String[] requiredTags = new String[] { "image2map:x", "image2map:y", "image2map:width", "image2map:height",
-                "image2map:right", "image2map:down", "image2map:facing" };
 
-        if (stack.getItem() == Items.FILLED_MAP && tag != null && Arrays.stream(requiredTags).allMatch(tag::contains)) {
-            var xo = tag.getInt("image2map:x");
-            var yo = tag.getInt("image2map:y");
-            var width = tag.getInt("image2map:width");
-            var height = tag.getInt("image2map:height");
+        if (stack.getItem() == Items.FILLED_MAP && tag.isSuccess() && tag.getOrThrow().right().isPresent()
+                && tag.getOrThrow().down().isPresent() && tag.getOrThrow().facing().isPresent()) {
+            var xo = tag.getOrThrow().x();
+            var yo = tag.getOrThrow().y();
+            var width = tag.getOrThrow().width();
+            var height = tag.getOrThrow().height();
 
-            Direction right = Direction.byName(tag.getString("image2map:right"));
-            Direction down = Direction.byName(tag.getString("image2map:down"));
-            Direction facing = Direction.byName(tag.getString("image2map:facing"));
+            Direction right = tag.getOrThrow().right().get();
+            Direction down = tag.getOrThrow().down().get();
+            Direction facing = tag.getOrThrow().facing().get();
 
             var world = itemFrameEntity.getWorld();
             var start = itemFrameEntity.getBlockPos();
@@ -343,7 +335,10 @@ public class Image2Map implements ModInitializer {
 
                         // Only apply to frames that contain an image2map map
                         var frameStack = frame.getHeldItemStack();
-                        if (frameStack.getItem() == Items.FILLED_MAP && tag != null && Arrays.stream(requiredTags).allMatch(tag::contains)) {
+                        tag = frameStack.getOrDefault(DataComponentTypes.CUSTOM_DATA, NbtComponent.DEFAULT).get(ImageData.CODEC);
+
+                        if (frameStack.getItem() == Items.FILLED_MAP && tag.isSuccess() && tag.getOrThrow().right().isPresent()
+                                && tag.getOrThrow().down().isPresent() && tag.getOrThrow().facing().isPresent()) {
                             frame.setHeldItemStack(ItemStack.EMPTY, true);
                             frame.setInvisible(false);
                         }
