@@ -23,10 +23,7 @@ import net.minecraft.entity.decoration.ItemFrameEntity;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
-import net.minecraft.nbt.NbtCompound;
-import net.minecraft.nbt.NbtElement;
-import net.minecraft.nbt.NbtList;
-import net.minecraft.nbt.NbtString;
+import net.minecraft.nbt.*;
 import net.minecraft.server.command.ServerCommandSource;
 import net.minecraft.text.Text;
 import net.minecraft.util.Formatting;
@@ -214,7 +211,7 @@ public class Image2Map implements ModInitializer {
         } else {
             var bundle = new ItemStack(Items.BUNDLE);
             bundle.set(DataComponentTypes.BUNDLE_CONTENTS, new BundleContentsComponent(items));
-            bundle.set(DataComponentTypes.CUSTOM_DATA, NbtComponent.DEFAULT.with(ImageData.CODEC,
+            bundle.set(DataComponentTypes.CUSTOM_DATA, NbtComponent.DEFAULT.with(NbtOps.INSTANCE, ImageData.CODEC,
                     ImageData.ofBundle(MathHelper.ceil(width / 128d), MathHelper.ceil(height / 128d))).getOrThrow());
 
             bundle.set(DataComponentTypes.LORE, new LoreComponent(List.of(Text.literal(input))));
@@ -277,7 +274,7 @@ public class Image2Map implements ModInitializer {
                 if (mapData.isSuccess() && mapData.getOrThrow().isReal()) {
                     map = map.copy();
                     var newData = mapData.getOrThrow().withDirection(right, down, facing);
-                    map.apply(DataComponentTypes.CUSTOM_DATA, NbtComponent.DEFAULT, x -> x.with(ImageData.CODEC, newData).getOrThrow());
+                    map.apply(DataComponentTypes.CUSTOM_DATA, NbtComponent.DEFAULT, x -> x.with(NbtOps.INSTANCE, ImageData.CODEC, newData).getOrThrow());
 
                     var frame = frames[mapData.getOrThrow().x() + mapData.getOrThrow().y() * width];
 

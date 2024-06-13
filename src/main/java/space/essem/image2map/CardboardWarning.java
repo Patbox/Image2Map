@@ -8,7 +8,7 @@ import org.slf4j.Logger;
 import java.util.List;
 
 public class CardboardWarning implements PreLaunchEntrypoint {
-    public static final String MOD_NAME = "Brewery";
+    public static final String MOD_NAME = "Image2Map";
     public static final Logger LOGGER = LogUtils.getLogger();
 
     // Overwrite heavy and generally problematic bukkit implementation

@@ -69,7 +69,8 @@ public class MapGui extends HotbarGui {
         //this.cursorX = this.canvas.getWidth();
         //this.cursorY = this.canvas.getHeight(); // MapDecoration.Type.TARGET_POINT
         //this.cursor = null;//this.canvas.createIcon(MapIcon.Type.TARGET_POINT, true, this.cursorX, this.cursorY, (byte) 14, null);
-        player.networkHandler.sendPacket(this.entity.createSpawnPacket());
+        player.networkHandler.sendPacket(new EntitySpawnS2CPacket(this.entity.getId(), this.entity.getUuid(),
+                this.entity.getX(), this.entity.getY(), this.entity.getZ(), this.entity.getPitch(), entity.getYaw(), entity.getType(), 0, Vec3d.ZERO, entity.getHeadYaw()));
 
         player.networkHandler.sendPacket(new EntityTrackerUpdateS2CPacket(this.entity.getId(), this.entity.getDataTracker().getChangedEntries()));
         player.networkHandler.sendPacket(new SetCameraEntityS2CPacket(this.entity));
