@@ -64,6 +64,11 @@ public class Image2Map implements ModInitializer {
         CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) -> {
             dispatcher.register(literal("image2map")
                     .requires(source -> source.hasPermissionLevel(CONFIG.minPermLevel))
+//                      .then(literal("create")
+//                        .then(argument("path", StringArgumentType.greedyString())
+//                          .executes(this::createMap)
+//                        )
+//                      )
                     .then(literal("create")
                             .then(argument("width", IntegerArgumentType.integer(1))
                                     .then(argument("height", IntegerArgumentType.integer(1))
@@ -162,21 +167,24 @@ public class Image2Map implements ModInitializer {
         ServerCommandSource source = context.getSource();
 
         PlayerEntity player = source.getPlayer();
+//        DitherMode mode = DitherMode.NONE;
         DitherMode mode;
         String modeStr = StringArgumentType.getString(context, "mode");
         try {
             mode = DitherMode.fromString(modeStr);
         } catch (IllegalArgumentException e) {
             throw new SimpleCommandExceptionType(() -> "Invalid dither mode '" + modeStr + "'").create();
+            // Sloppy way to eliminate dithering, should really remove this try/catch and rendering arg
+            // mode = DitherMode.NONE;
         }
 
         String input = StringArgumentType.getString(context, "path");
 
-        source.sendFeedback(() -> Text.literal("Getting image..."), false);
+        source.sendFeedback(() -> Text.literal("Fetching image..."), false);
 
         getImage(input).orTimeout(60, TimeUnit.SECONDS).handleAsync((image, ex) -> {
             if (image == null || ex != null) {
-                source.sendFeedback(() -> Text.literal("That doesn't seem to be a valid image!"), false);
+                source.sendFeedback(() -> Text.literal("That doesn't seem to be a valid image! Make sure to use a supported format (JPG/PNG) and/or try again."), false);
             }
 
             int width;
@@ -190,8 +198,10 @@ public class Image2Map implements ModInitializer {
                 height = image.getHeight();
             }
 
-            int finalHeight = height;
-            int finalWidth = width;
+            // int finalHeight = height;
+            int finalHeight = 128;  // Size of a single map
+            // int finalWidth = width;
+            int finalWidth = 128;  // Size of a single map
             source.sendFeedback(() -> Text.literal("Converting into maps..."), false);
 
             CompletableFuture.supplyAsync(() -> MapRenderer.render(image, mode, finalWidth, finalHeight)).thenAcceptAsync(mapImage -> {
