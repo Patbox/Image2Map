@@ -1,34 +1,18 @@
-# Image2Map
-<img src="https://cdn.discordapp.com/attachments/705864145169416313/969720133998239794/fabric_supported.png" width="128">
-<img src="https://cdn.discordapp.com/attachments/705864145169416313/969716884482183208/quilt_supported.png" width="128">
+# Image2Map - Zgell's Fork
+A fork of the Minecraft mod "[Image2Map](https://github.com/Patbox/Image2Map)" by Patbox.
 
-A Fabric mod that allows you to render an image onto a map(s), allowing you to display it on your vanilla compatible server!
+The motivation for forking this mod was to address an issue with the mod that can arise in what I call "low-trust Minecraft servers".
+The original mod is a very fun addition to Minecraft servers, but it suffers from a memory-related issue that can cause server crashes if a player creates an image that is too large.
+This is a problem for public Minecraft servers that want to make this mod available to all of its players, as ANY malicious/untrustworthy player could crash the server, or worse.
 
-![Some images](https://raw.githubusercontent.com/TheEssem/Image2Map/master/images.png)
-![More images](https://imgur.com/qy8JF5B.png)
+This is a sloppy hotfix to the original mod that makes one change: all images, regardless of original size, are scaled down to 128x128, the size of a single map item.
+This prevents the memory issue as it is related to the multi-map feature.
+This does restrict the functionality of the mod considerably, so this version is unlikely to be useful to anyone else but me.
 
-## Commands:
-- `/image2map create <WIDTH> <HEIGHT> <[dither/none]> <URL>` - Creates map of specified size (in pixels, single map is 128x128), with/without dither, using provided image
-- `/image2map create <[dither/none]> <URL>` - Creates map with/without dither, using provided image
-- `/image2map preview <URL>` - Creates dynamic preview before saving the map as item
+## Command Syntax
+- `/image2map create <[dither/none]> <URL>` - Creates **singular map item**, with/without dither, using provided image
 
-### Commands in preview mode
-- `/dither <[dither/none]>` - Changes dither mode
-- `/size` - Displays current size
-- `/size <WIDTH> <HEIGHT>` - Changes size of map to specified one (in pixels, single map is 128x128)
-- `/grid` - Toggles visibility of map grid
-- `/save` - Exits preview and saves map as items
-- `/exit` - Exits preview without saving
+This mod maintains the original syntax of the command to keep it familiar with players who are already familiar with the mod.
 
-### Multimaps
-In case of maps bigger than 128x128 pixels, you will get them in a bundle. 
-Clicking with it on top-left corner of item frames will put all maps in correct places.
-Works for any item frame on wall, floor or ceiling.
-
-## Downloads:
-- Modrinth: https://modrinth.com/mod/image2map
-- Curseforge: https://www.curseforge.com/minecraft/mc-mods/image2map
-
-
-Will you port this to Forge/Bukkit/Paper?  
-   ![no lol](https://i.imgur.com/tf5W69k.png)
+## Links to the Original Mod:
+The original mod can be downloaded at either [Modrinth](https://modrinth.com/mod/image2map) or [Curseforge](https://www.curseforge.com/minecraft/mc-mods/image2map).
