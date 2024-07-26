@@ -14,6 +14,8 @@ group = project.maven_group
 repositories{
 	maven { url "https://maven.shedaniel.me/" }
 	maven { url "https://maven.nucleoid.xyz/" }
+	maven { url 'https://oss.sonatype.org/content/repositories/snapshots' }
+	mavenCentral()
 }
 
 dependencies {
@@ -27,6 +29,7 @@ dependencies {
 
 	modImplementation include("eu.pb4:map-canvas-api:${project.mapcanvas_version}")
 	modImplementation include("eu.pb4:sgui:${project.sgui_version}")
+	modImplementation include("me.lucko:fabric-permissions-api:0.2-SNAPSHOT")
 }
 
 loom {

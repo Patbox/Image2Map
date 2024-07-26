@@ -10,6 +10,7 @@ import com.mojang.brigadier.suggestion.Suggestions;
 import com.mojang.brigadier.suggestion.SuggestionsBuilder;
 import com.mojang.logging.LogUtils;
 import eu.pb4.sgui.api.GuiHelpers;
+import me.lucko.fabric.api.permissions.v0.Permissions;
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
@@ -25,6 +26,8 @@ import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
 import net.minecraft.nbt.*;
 import net.minecraft.server.command.ServerCommandSource;
+import net.minecraft.text.HoverEvent;
+import net.minecraft.text.Style;
 import net.minecraft.text.Text;
 import net.minecraft.util.Formatting;
 import net.minecraft.util.Hand;
@@ -44,11 +47,18 @@ import space.essem.image2map.renderer.MapRenderer;
 import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
 import java.io.File;
+import java.net.URI;
 import java.net.URL;
 import java.net.URLConnection;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.time.Duration;
+import java.time.temporal.TemporalUnit;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 import static net.minecraft.server.command.CommandManager.argument;
 import static net.minecraft.server.command.CommandManager.literal;
@@ -63,8 +73,9 @@ public class Image2Map implements ModInitializer {
     public void onInitialize() {
         CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) -> {
             dispatcher.register(literal("image2map")
-                    .requires(source -> source.hasPermissionLevel(CONFIG.minPermLevel))
+                    .requires(Permissions.require("image2map.use", CONFIG.minPermLevel))
                     .then(literal("create")
+                            .requires(Permissions.require("image2map.create", 0))
                             .then(argument("width", IntegerArgumentType.integer(1))
                                     .then(argument("height", IntegerArgumentType.integer(1))
                                             .then(argument("mode", StringArgumentType.word()).suggests(new DitherModeSuggestionProvider())
@@ -80,6 +91,7 @@ public class Image2Map implements ModInitializer {
                             )
                     )
                     .then(literal("preview")
+                            .requires(Permissions.require("image2map.preview", 0))
                             .then(argument("path", StringArgumentType.greedyString())
                                     .executes(this::openPreview)
                             )
@@ -96,9 +108,24 @@ public class Image2Map implements ModInitializer {
 
         source.sendFeedback(() -> Text.literal("Getting image..."), false);
 
-        getImage(input).orTimeout(60, TimeUnit.SECONDS).handleAsync((image, ex) -> {
-            if (image == null || ex != null) {
-                source.sendFeedback(() -> Text.literal("That doesn't seem to be a valid image!"), false);
+        getImage(input).orTimeout(20, TimeUnit.SECONDS).handleAsync((image, ex) -> {
+            if (ex instanceof TimeoutException) {
+                source.sendFeedback(() -> Text.literal("Downloading or reading of the image took too long!"), false);
+                return null;
+            } else if (ex != null) {
+                if (ex instanceof RuntimeException ru && ru.getCause() != null) {
+                    ex = ru.getCause();
+                }
+
+                Throwable finalEx = ex;
+                source.sendFeedback(() -> Text.literal("The image isn't valid (hover for more info)!")
+                        .setStyle(Style.EMPTY.withColor(Formatting.RED).withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, Text.literal(finalEx.getMessage())))), false);
+                return null;
+            }
+
+            if (image == null) {
+                source.sendFeedback(() -> Text.literal("That doesn't seem to be a valid image (unknown reason)!"), false);
+                return null;
             }
 
             if (GuiHelpers.getCurrentGui(source.getPlayer()) instanceof PreviewGui previewGui) {
@@ -141,11 +168,13 @@ public class Image2Map implements ModInitializer {
         return CompletableFuture.supplyAsync(() -> {
             try {
                 if (isValid(input)) {
-                    URL url = new URL(input);
-                    URLConnection connection = url.openConnection();
-                    connection.setRequestProperty("User-Agent", "Image2Map mod");
-                    connection.connect();
-                    return ImageIO.read(connection.getInputStream());
+                    try(var client = HttpClient.newHttpClient()) {
+                        var req = HttpRequest.newBuilder().GET().uri(URI.create(input)).timeout(Duration.ofSeconds(30))
+                                .setHeader("User-Agent", "Image2Map mod").build();
+
+                        var stream = client.send(req, HttpResponse.BodyHandlers.ofInputStream());
+                        return ImageIO.read(stream.body());
+                    }
                 } else if (CONFIG.allowLocalFiles) {
                     File file = new File(input);
                     return ImageIO.read(file);
@@ -153,7 +182,7 @@ public class Image2Map implements ModInitializer {
                     return null;
                 }
             } catch (Throwable e) {
-                return null;
+                throw new RuntimeException(e);
             }
         });
     }
@@ -174,9 +203,24 @@ public class Image2Map implements ModInitializer {
 
         source.sendFeedback(() -> Text.literal("Getting image..."), false);
 
-        getImage(input).orTimeout(60, TimeUnit.SECONDS).handleAsync((image, ex) -> {
-            if (image == null || ex != null) {
-                source.sendFeedback(() -> Text.literal("That doesn't seem to be a valid image!"), false);
+        getImage(input).orTimeout(20, TimeUnit.SECONDS).handleAsync((image, ex) -> {
+            if (ex instanceof TimeoutException) {
+                source.sendFeedback(() -> Text.literal("Downloading or reading of the image took too long!"), false);
+                return null;
+            } else if (ex != null) {
+                if (ex instanceof RuntimeException ru && ru.getCause() != null) {
+                    ex = ru.getCause();
+                }
+
+                Throwable finalEx = ex;
+                source.sendFeedback(() -> Text.literal("The image isn't valid (hover for more info)!")
+                        .setStyle(Style.EMPTY.withColor(Formatting.RED).withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, Text.literal(finalEx.getMessage())))), false);
+                return null;
+            }
+
+            if (image == null) {
+                source.sendFeedback(() -> Text.literal("That doesn't seem to be a valid image (unknown reason)!"), false);
+                return null;
             }
 
             int width;
