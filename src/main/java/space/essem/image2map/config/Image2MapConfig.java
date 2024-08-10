@@ -16,6 +16,11 @@ public class Image2MapConfig {
 
   public boolean allowLocalFiles = false;
 
+  /**
+   * Allows maps to tile (>128x128 images)
+   * */
+  public boolean allowTiledMaps = true;
+
   public int minPermLevel = 2;
 
 
