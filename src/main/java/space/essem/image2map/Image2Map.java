@@ -14,6 +14,7 @@ import me.lucko.fabric.api.permissions.v0.Permissions;
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
+import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.component.DataComponentTypes;
 import net.minecraft.component.type.BundleContentsComponent;
 import net.minecraft.component.type.LoreComponent;
@@ -22,6 +23,7 @@ import net.minecraft.entity.Entity;
 import net.minecraft.entity.data.DataTracker;
 import net.minecraft.entity.decoration.ItemFrameEntity;
 import net.minecraft.entity.player.PlayerEntity;
+import net.minecraft.item.BundleItem;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
 import net.minecraft.nbt.*;
@@ -47,14 +49,21 @@ import space.essem.image2map.renderer.MapRenderer;
 import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
 import java.io.File;
+import java.io.IOException;
 import java.net.URI;
 import java.net.URL;
 import java.net.URLConnection;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.nio.file.FileVisitResult;
+import java.nio.file.FileVisitor;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.time.Duration;
 import java.time.temporal.TemporalUnit;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
@@ -87,6 +96,22 @@ public class Image2Map implements ModInitializer {
                             .then(argument("mode", StringArgumentType.word()).suggests(new DitherModeSuggestionProvider())
                                     .then(argument("path", StringArgumentType.greedyString())
                                             .executes(this::createMap)
+                                    )
+                            )
+                    )
+                    .then(literal("create-folder")
+                            .requires(Permissions.require("image2map.createfolder", 3))
+                            .then(argument("width", IntegerArgumentType.integer(1))
+                                    .then(argument("height", IntegerArgumentType.integer(1))
+                                            .then(argument("mode", StringArgumentType.word()).suggests(new DitherModeSuggestionProvider())
+                                                    .then(argument("path", StringArgumentType.greedyString())
+                                                            .executes(this::createMapFromFolder))
+                                            )
+                                    )
+                            )
+                            .then(argument("mode", StringArgumentType.word()).suggests(new DitherModeSuggestionProvider())
+                                    .then(argument("path", StringArgumentType.greedyString())
+                                            .executes(this::createMapFromFolder)
                                     )
                             )
                     )
@@ -176,8 +201,11 @@ public class Image2Map implements ModInitializer {
                         return ImageIO.read(stream.body());
                     }
                 } else if (CONFIG.allowLocalFiles) {
-                    File file = new File(input);
-                    return ImageIO.read(file);
+                    var path = FabricLoader.getInstance().getGameDir().resolve(input);
+                    if (Files.exists(path)) {
+                        return ImageIO.read(Files.newInputStream(path));
+                    }
+                    return null;
                 } else {
                     return null;
                 }
@@ -185,6 +213,52 @@ public class Image2Map implements ModInitializer {
                 throw new RuntimeException(e);
             }
         });
+    }
+
+    private List<BufferedImage> getImageFromFolder(String input) {
+        if (CONFIG.allowLocalFiles || true) {
+            try {
+                var arr = new ArrayList<BufferedImage>();
+                var path = FabricLoader.getInstance().getGameDir().resolve(input);
+                if (Files.exists(path) && Files.isDirectory(path)) {
+                    Files.walkFileTree(path, new FileVisitor<Path>() {
+                        @Override
+                        public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) throws IOException {
+                            return FileVisitResult.CONTINUE;
+                        }
+
+                        @Override
+                        public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
+                            try {
+                                var x = ImageIO.read(Files.newInputStream(file));
+                                if (x != null) {
+                                    arr.add(x);
+                                }
+                            }catch (Throwable e) {
+                                e.printStackTrace();
+                            }
+
+                            return FileVisitResult.CONTINUE;
+                        }
+
+                        @Override
+                        public FileVisitResult visitFileFailed(Path file, IOException exc) throws IOException {
+                            return FileVisitResult.CONTINUE;
+                        }
+
+                        @Override
+                        public FileVisitResult postVisitDirectory(Path dir, IOException exc) throws IOException {
+                            return FileVisitResult.CONTINUE;
+                        }
+                    });
+                }
+                return arr;
+            } catch (Throwable e) {
+                throw new RuntimeException(e);
+            }
+        }
+
+        return List.of();
     }
 
     private int createMap(CommandContext<ServerCommandSource> context) throws CommandSyntaxException {
@@ -249,9 +323,58 @@ public class Image2Map implements ModInitializer {
         return 1;
     }
 
+    private int createMapFromFolder(CommandContext<ServerCommandSource> context) throws CommandSyntaxException {
+        ServerCommandSource source = context.getSource();
+
+        PlayerEntity player = source.getPlayer();
+        DitherMode mode;
+        String modeStr = StringArgumentType.getString(context, "mode");
+        try {
+            mode = DitherMode.fromString(modeStr);
+        } catch (IllegalArgumentException e) {
+            throw new SimpleCommandExceptionType(() -> "Invalid dither mode '" + modeStr + "'").create();
+        }
+
+        String input = StringArgumentType.getString(context, "path");
+
+        source.sendFeedback(() -> Text.literal("Getting image..."), false);
+
+        var list = new ArrayList<ItemStack>();
+
+        for (var image : getImageFromFolder(input)) {
+            int width;
+            int height;
+
+            try {
+                width = IntegerArgumentType.getInteger(context, "width");
+                height = IntegerArgumentType.getInteger(context, "height");
+            } catch (Throwable e) {
+                width = image.getWidth();
+                height = image.getHeight();
+            }
+
+            int finalHeight = height;
+            int finalWidth = width;
+            source.sendFeedback(() -> Text.literal("Converting into maps..."), false);
+
+            var mapImage = MapRenderer.render(image, mode, finalWidth, finalHeight);
+            var items = MapRenderer.toVanillaItems(mapImage, source.getWorld(), input);
+            list.add(toSingleStack(items, input, width, height));
+        }
+        var bundle = new ItemStack(Items.BUNDLE);
+        bundle.set(DataComponentTypes.BUNDLE_CONTENTS, new BundleContentsComponent(list));
+        player.giveItemStack(bundle);
+
+        return 1;
+    }
+
     public static void giveToPlayer(PlayerEntity player, List<ItemStack> items, String input, int width, int height) {
+        player.giveItemStack(toSingleStack(items, input, width, height));
+    }
+
+    public static ItemStack toSingleStack(List<ItemStack> items, String input, int width, int height) {
         if (items.size() == 1) {
-            player.giveItemStack(items.get(0));
+            return items.get(0);
         } else {
             var bundle = new ItemStack(Items.BUNDLE);
             bundle.set(DataComponentTypes.BUNDLE_CONTENTS, new BundleContentsComponent(items));
@@ -261,7 +384,7 @@ public class Image2Map implements ModInitializer {
             bundle.set(DataComponentTypes.LORE, new LoreComponent(List.of(Text.literal(input))));
             bundle.set(DataComponentTypes.ITEM_NAME, Text.literal("Maps").formatted(Formatting.GOLD));
 
-            player.giveItemStack(bundle);
+            return bundle;
         }
     }
 
