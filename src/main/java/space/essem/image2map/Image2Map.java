@@ -100,7 +100,7 @@ public class Image2Map implements ModInitializer {
                             )
                     )
                     .then(literal("create-folder")
-                            .requires(Permissions.require("image2map.createfolder", 3))
+                            .requires(Permissions.require("image2map.createfolder", 3).and(x -> CONFIG.allowLocalFiles))
                             .then(argument("width", IntegerArgumentType.integer(1))
                                     .then(argument("height", IntegerArgumentType.integer(1))
                                             .then(argument("mode", StringArgumentType.word()).suggests(new DitherModeSuggestionProvider())
@@ -216,7 +216,7 @@ public class Image2Map implements ModInitializer {
     }
 
     private List<BufferedImage> getImageFromFolder(String input) {
-        if (CONFIG.allowLocalFiles || true) {
+        if (CONFIG.allowLocalFiles) {
             try {
                 var arr = new ArrayList<BufferedImage>();
                 var path = FabricLoader.getInstance().getGameDir().resolve(input);

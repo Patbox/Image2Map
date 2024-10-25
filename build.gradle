@@ -1,5 +1,5 @@
 plugins {
-	id 'fabric-loom' version '1.6-SNAPSHOT'
+	id 'fabric-loom' version '1.7.+'
 	id 'maven-publish'
 	id "com.modrinth.minotaur" version "2.+"
 }
@@ -29,7 +29,7 @@ dependencies {
 
 	modImplementation include("eu.pb4:map-canvas-api:${project.mapcanvas_version}")
 	modImplementation include("eu.pb4:sgui:${project.sgui_version}")
-	modImplementation include("me.lucko:fabric-permissions-api:0.2-SNAPSHOT")
+	modImplementation include("me.lucko:fabric-permissions-api:0.3.2")
 }
 
 loom {

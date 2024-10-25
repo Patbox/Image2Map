@@ -16,6 +16,7 @@ import net.minecraft.entity.Entity;
 import net.minecraft.entity.EntityType;
 import net.minecraft.entity.MovementType;
 import net.minecraft.entity.passive.HorseEntity;
+import net.minecraft.entity.player.PlayerPosition;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
 import net.minecraft.network.PacketByteBuf;
@@ -24,12 +25,14 @@ import net.minecraft.network.packet.c2s.play.ClientCommandC2SPacket;
 import net.minecraft.network.packet.c2s.play.PlayerActionC2SPacket;
 import net.minecraft.network.packet.s2c.play.*;
 import net.minecraft.server.network.ServerPlayerEntity;
+import net.minecraft.util.PlayerInput;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Direction;
 import net.minecraft.util.math.Vec3d;
 import net.minecraft.world.GameMode;
 import java.util.Collections;
 import java.util.EnumSet;
+import java.util.Set;
 
 import org.jetbrains.annotations.Nullable;
 import space.essem.image2map.mixin.EntityPassengersSetS2CPacketAccessor;
@@ -96,7 +99,7 @@ public class MapGui extends HotbarGui {
     protected void resizeCanvas(int width, int height) {
         this.destroy();
         this.initialize(width, height);
-        this.player.networkHandler.sendPacket(new EntityPositionS2CPacket(this.entity));
+        this.player.networkHandler.sendPacket(new EntityPositionS2CPacket(this.entity.getId(), new PlayerPosition(this.entity.getPos(), Vec3d.ZERO, this.entity.getYaw(), this.entity.getPitch()), Set.of(), false));
     }
 
     protected void initialize(int width, int height) {
@@ -150,7 +153,7 @@ public class MapGui extends HotbarGui {
             this.player.networkHandler.sendPacket(new EntitiesDestroyS2CPacket(this.additionalEntities));
         }
         this.player.networkHandler.sendPacket(new GameStateChangeS2CPacket(GameStateChangeS2CPacket.GAME_MODE_CHANGED, this.player.interactionManager.getGameMode().getId()));
-        this.player.networkHandler.sendPacket(new PlayerPositionLookS2CPacket(this.player.getX(), this.player.getY(), this.player.getZ(), this.player.getYaw(), this.player.getPitch(), EnumSet.noneOf(PositionFlag.class), 0));
+        this.player.networkHandler.sendPacket(new PlayerPositionLookS2CPacket(this.entity.getId(), new PlayerPosition(this.entity.getPos(), Vec3d.ZERO, this.entity.getYaw(), this.entity.getPitch()), Set.of()));
 
         super.onClose();
     }
@@ -196,7 +199,7 @@ public class MapGui extends HotbarGui {
 
     public void setDistance(double i) {
         this.entity.setPos(this.entity.getX(), this.entity.getY(), this.pos.getZ() - i);
-        this.player.networkHandler.sendPacket(new EntityPositionS2CPacket(this.entity));
+        this.player.networkHandler.sendPacket(new EntityPositionS2CPacket(this.entity.getId(), new PlayerPosition(this.entity.getPos(), Vec3d.ZERO, this.entity.getYaw(), this.entity.getPitch()), Set.of(), false));
     }
 
     @Override
@@ -207,8 +210,7 @@ public class MapGui extends HotbarGui {
         return false;
     }
 
-    // deltaX/Z is currently useless while in camera mode, as it is always 0
-    public void onPlayerInput(float deltaX, float deltaZ, boolean jumping, boolean shiftKeyDown) {
+    public void onPlayerInput(PlayerInput input) {
 
     }
 

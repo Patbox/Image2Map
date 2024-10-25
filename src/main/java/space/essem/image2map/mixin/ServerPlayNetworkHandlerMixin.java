@@ -65,7 +65,7 @@ public abstract class ServerPlayNetworkHandlerMixin extends ServerCommonNetworkH
     private void image2map$onPlayerInput(PlayerInputC2SPacket packet, CallbackInfo ci) {
         if (this.player.currentScreenHandler instanceof VirtualScreenHandlerInterface handler && handler.getGui() instanceof MapGui computerGui) {
             this.server.execute(() -> {
-                computerGui.onPlayerInput(packet.getForward(), packet.getSideways(), packet.isJumping(), packet.isSneaking());
+                computerGui.onPlayerInput(packet.input());
             });
             ci.cancel();
         }

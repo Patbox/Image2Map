@@ -5,6 +5,7 @@ import net.minecraft.entity.decoration.ItemFrameEntity;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
+import net.minecraft.server.world.ServerWorld;
 import net.minecraft.util.ActionResult;
 import net.minecraft.util.Hand;
 
@@ -30,13 +31,12 @@ public class ItemFrameEntityMixin {
     }
 
     @Inject(method = "dropHeldStack", at = @At("HEAD"), cancellable = true)
-    private void image2map$destroyMaps(@Nullable Entity entity, boolean alwaysDrop,
-            CallbackInfo ci) {
+    private void image2map$destroyMaps(ServerWorld world, Entity entity, boolean dropSelf, CallbackInfo ci) {
         var frame = (ItemFrameEntity) (Object) this;
 
         if (!this.fixed && Image2Map.destroyItemFrame(entity, frame)) {
-            if (alwaysDrop) {
-                frame.dropStack(new ItemStack(Items.ITEM_FRAME));
+            if (dropSelf) {
+                frame.dropStack(world, new ItemStack(Items.ITEM_FRAME));
             }
             ci.cancel();
         }

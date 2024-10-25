@@ -149,18 +149,18 @@ public class MapRenderer {
 
     private static int mapColorToRGBColor(CanvasColor color) {
         var mcColor = color.getRgbColor();
-        double[] mcColorVec = { (double) ColorHelper.Argb.getRed(mcColor), (double) ColorHelper.Argb.getGreen(mcColor), (double) ColorHelper.Argb.getBlue(mcColor) };
+        double[] mcColorVec = { (double) ColorHelper.getRed(mcColor), (double) ColorHelper.getGreen(mcColor), (double) ColorHelper.getBlue(mcColor) };
         double coeff = shadeCoeffs[color.getColor().id & 3];
-        return ColorHelper.Argb.getArgb(0, (int) (mcColorVec[0] * coeff), (int) (mcColorVec[1] * coeff), (int) (mcColorVec[2] * coeff));
+        return ColorHelper.getArgb(0, (int) (mcColorVec[0] * coeff), (int) (mcColorVec[1] * coeff), (int) (mcColorVec[2] * coeff));
     }
 
     private static CanvasColor floydDither(int[][] pixels, int x, int y, int imageColor) {
         var closestColor = CanvasUtils.findClosestColorARGB(imageColor);
         var palletedColor = mapColorToRGBColor(closestColor);
 
-        var errorR = ColorHelper.Argb.getRed(imageColor) - ColorHelper.Argb.getRed(palletedColor);
-        var errorG = ColorHelper.Argb.getGreen(imageColor) - ColorHelper.Argb.getGreen(palletedColor);
-        var errorB = ColorHelper.Argb.getBlue(imageColor) - ColorHelper.Argb.getBlue(palletedColor);
+        var errorR = ColorHelper.getRed(imageColor) - ColorHelper.getRed(palletedColor);
+        var errorG = ColorHelper.getGreen(imageColor) - ColorHelper.getGreen(palletedColor);
+        var errorB = ColorHelper.getBlue(imageColor) - ColorHelper.getBlue(palletedColor);
         if (pixels[0].length > x + 1) {
             pixels[y][x + 1] = applyError(pixels[y][x + 1], errorR, errorG, errorB, 7.0 / 16.0);
         }
@@ -178,10 +178,10 @@ public class MapRenderer {
     }
 
     private static int applyError(int pixelColor, int errorR, int errorG, int errorB, double quantConst) {
-        int pR = clamp( ColorHelper.Argb.getRed(pixelColor) + (int) ((double) errorR * quantConst), 0, 255);
-        int pG = clamp(ColorHelper.Argb.getGreen(pixelColor) + (int) ((double) errorG * quantConst), 0, 255);
-        int pB = clamp(ColorHelper.Argb.getBlue(pixelColor) + (int) ((double) errorB * quantConst), 0, 255);
-        return ColorHelper.Argb.getArgb(ColorHelper.Argb.getAlpha(pixelColor), pR, pG, pB);
+        int pR = clamp( ColorHelper.getRed(pixelColor) + (int) ((double) errorR * quantConst), 0, 255);
+        int pG = clamp(ColorHelper.getGreen(pixelColor) + (int) ((double) errorG * quantConst), 0, 255);
+        int pB = clamp(ColorHelper.getBlue(pixelColor) + (int) ((double) errorB * quantConst), 0, 255);
+        return ColorHelper.getArgb(ColorHelper.getAlpha(pixelColor), pR, pG, pB);
     }
 
     private static int clamp(int i, int min, int max) {
