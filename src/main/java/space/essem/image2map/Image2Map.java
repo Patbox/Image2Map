@@ -303,9 +303,21 @@ public class Image2Map implements ModInitializer {
             try {
                 width = IntegerArgumentType.getInteger(context, "width");
                 height = IntegerArgumentType.getInteger(context, "height");
+
+                LOGGER.info("{}, {}", width, height);
+
+                if (!CONFIG.allowTiledMaps && (width > 128 || height > 128)) {
+                    source.sendFeedback(() -> Text.literal("The image is too large. Must be less than or equal to 128x128.")
+                            .setStyle(Style.EMPTY.withColor(Formatting.RED)), false);
+                    return null;
+                }
             } catch (Throwable e) {
                 width = image.getWidth();
                 height = image.getHeight();
+                if (!CONFIG.allowTiledMaps && (width > 128 || height > 128)) {
+                    width = 128;
+                    height = 128;
+                }
             }
 
             int finalHeight = height;
