@@ -83,7 +83,7 @@ public class MapGui extends HotbarGui {
         buf.writeVarInt(this.entity.getId());
         buf.writeIntArray(new int[]{player.getId()});
         player.networkHandler.sendPacket(EntityPassengersSetS2CPacketAccessor.createEntityPassengersSetS2CPacket(buf));
-        player.networkHandler.sendPacket(new GameStateChangeS2CPacket(GameStateChangeS2CPacket.GAME_MODE_CHANGED, GameMode.SPECTATOR.getId()));
+        player.networkHandler.sendPacket(new GameStateChangeS2CPacket(GameStateChangeS2CPacket.GAME_MODE_CHANGED, GameMode.SPECTATOR.getIndex()));
         player.networkHandler.sendPacket(new EntityS2CPacket.Rotate(player.getId(), (byte) 0, (byte) 0, player.isOnGround()));
 
         //player.networkHandler.sendPacket(COMMAND_PACKET);
@@ -152,7 +152,7 @@ public class MapGui extends HotbarGui {
         if (!this.additionalEntities.isEmpty()) {
             this.player.networkHandler.sendPacket(new EntitiesDestroyS2CPacket(this.additionalEntities));
         }
-        this.player.networkHandler.sendPacket(new GameStateChangeS2CPacket(GameStateChangeS2CPacket.GAME_MODE_CHANGED, this.player.interactionManager.getGameMode().getId()));
+        this.player.networkHandler.sendPacket(new GameStateChangeS2CPacket(GameStateChangeS2CPacket.GAME_MODE_CHANGED, this.player.interactionManager.getGameMode().getIndex()));
         this.player.networkHandler.sendPacket(new PlayerPositionLookS2CPacket(this.entity.getId(), new PlayerPosition(this.entity.getPos(), Vec3d.ZERO, this.entity.getYaw(), this.entity.getPitch()), Set.of()));
 
         super.onClose();

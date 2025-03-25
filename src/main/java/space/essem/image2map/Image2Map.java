@@ -144,7 +144,7 @@ public class Image2Map implements ModInitializer {
 
                 Throwable finalEx = ex;
                 source.sendFeedback(() -> Text.literal("The image isn't valid (hover for more info)!")
-                        .setStyle(Style.EMPTY.withColor(Formatting.RED).withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, Text.literal(finalEx.getMessage())))), false);
+                        .setStyle(Style.EMPTY.withColor(Formatting.RED).withHoverEvent(new HoverEvent.ShowText(Text.literal(finalEx.getMessage())))), false);
                 return null;
             }
 
@@ -288,7 +288,7 @@ public class Image2Map implements ModInitializer {
 
                 Throwable finalEx = ex;
                 source.sendFeedback(() -> Text.literal("The image isn't valid (hover for more info)!")
-                        .setStyle(Style.EMPTY.withColor(Formatting.RED).withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, Text.literal(finalEx.getMessage())))), false);
+                        .setStyle(Style.EMPTY.withColor(Formatting.RED).withHoverEvent(new HoverEvent.ShowText(Text.literal(finalEx.getMessage())))), false);
                 return null;
             }
 
@@ -414,10 +414,10 @@ public class Image2Map implements ModInitializer {
                 right = player.getHorizontalFacing().rotateYClockwise();
                 if (facing.getDirection() == Direction.AxisDirection.POSITIVE) {
                     down = right.rotateYClockwise();
-                    rot = player.getHorizontalFacing().getOpposite().getHorizontal();
+                    rot = player.getHorizontalFacing().getOpposite().getHorizontalQuarterTurns();
                 } else {
                     down = right.rotateYCounterclockwise();
-                    rot = (right.getAxis() == Direction.Axis.Z ? player.getHorizontalFacing() : player.getHorizontalFacing().getOpposite()).getHorizontal();
+                    rot = (right.getAxis() == Direction.Axis.Z ? player.getHorizontalFacing() : player.getHorizontalFacing().getOpposite()).getHorizontalQuarterTurns();
                 }
             }
 
