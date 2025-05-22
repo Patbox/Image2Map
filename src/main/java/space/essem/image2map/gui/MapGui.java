@@ -58,6 +58,12 @@ public class MapGui extends HotbarGui {
 
     public MapGui(ServerPlayerEntity player, int width, int height) {
         super(player);
+
+        // Dismount players to stop them from using their magic to fly
+        if (player.hasVehicle()) {
+            player.stopRiding();
+        }
+
         var pos = player.getBlockPos().withY(2048);
         this.pos = pos;
 
