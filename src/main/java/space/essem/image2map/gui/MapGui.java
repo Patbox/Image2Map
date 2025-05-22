@@ -32,6 +32,7 @@ import net.minecraft.util.math.Vec3d;
 import net.minecraft.world.GameMode;
 import java.util.Collections;
 import java.util.EnumSet;
+import java.util.Objects;
 import java.util.Set;
 
 import org.jetbrains.annotations.Nullable;
@@ -153,8 +154,10 @@ public class MapGui extends HotbarGui {
             this.player.networkHandler.sendPacket(new EntitiesDestroyS2CPacket(this.additionalEntities));
         }
         this.player.networkHandler.sendPacket(new GameStateChangeS2CPacket(GameStateChangeS2CPacket.GAME_MODE_CHANGED, this.player.interactionManager.getGameMode().getIndex()));
-        this.player.networkHandler.sendPacket(new PlayerPositionLookS2CPacket(this.entity.getId(), new PlayerPosition(this.entity.getPos(), Vec3d.ZERO, this.entity.getYaw(), this.entity.getPitch()), Set.of()));
-
+        this.player.networkHandler.sendPacket(new PlayerPositionLookS2CPacket(this.player.getId(), new PlayerPosition(this.player.getPos(), Vec3d.ZERO, this.player.getYaw(), this.player.getPitch()), Set.of()));
+        if (this.player.hasVehicle()) {
+            this.player.networkHandler.sendPacket(new EntityPassengersSetS2CPacket(Objects.requireNonNull(this.player.getVehicle())));
+        }
         super.onClose();
     }
 
