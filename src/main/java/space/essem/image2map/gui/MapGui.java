@@ -48,6 +48,11 @@ public class MapGui extends HotbarGui {
     public final BlockPos pos;
     //public final CanvasIcon cursor;
 
+    private final Vec3d originalPosition;
+    private final float originalYaw;
+    private final float originalPitch;
+    private final GameMode originalGameMode;
+
     public final IntList additionalEntities = new IntArrayList();
 
     //public float xRot;
@@ -58,6 +63,13 @@ public class MapGui extends HotbarGui {
 
     public MapGui(ServerPlayerEntity player, int width, int height) {
         super(player);
+
+        // Store the player's original position and rotation
+        this.originalPosition = player.getPos();
+        this.originalYaw = player.getYaw();
+        this.originalPitch = player.getPitch();
+        this.originalGameMode = player.interactionManager.getGameMode();
+
 
         // Dismount players to stop them from using their magic to fly
         if (player.hasVehicle()) {
@@ -160,6 +172,26 @@ public class MapGui extends HotbarGui {
         }
         this.player.networkHandler.sendPacket(new GameStateChangeS2CPacket(GameStateChangeS2CPacket.GAME_MODE_CHANGED, this.player.interactionManager.getGameMode().getIndex()));
         this.player.networkHandler.sendPacket(new PlayerPositionLookS2CPacket(this.entity.getId(), new PlayerPosition(this.entity.getPos(), Vec3d.ZERO, this.entity.getYaw(), this.entity.getPitch()), Set.of()));
+
+        this.player.networkHandler.sendPacket(new GameStateChangeS2CPacket(
+                GameStateChangeS2CPacket.GAME_MODE_CHANGED,
+                this.originalGameMode.getIndex()
+        ));
+
+        this.player.networkHandler.sendPacket(new PlayerPositionLookS2CPacket(
+                this.player.getId(),
+                new PlayerPosition(
+                        this.originalPosition,
+                        Vec3d.ZERO,
+                        this.originalYaw,
+                        this.originalPitch
+                ),
+                Set.of()
+        ));
+
+        this.player.setPos(this.originalPosition.x, this.originalPosition.y, this.originalPosition.z);
+        this.player.setYaw(this.originalYaw);
+        this.player.setPitch(this.originalPitch);
 
         super.onClose();
     }
