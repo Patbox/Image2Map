@@ -6,15 +6,22 @@ import com.mojang.brigadier.arguments.BoolArgumentType;
 import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import com.mojang.brigadier.builder.RequiredArgumentBuilder;
+import com.mojang.brigadier.suggestion.SuggestionProvider;
+import com.mojang.brigadier.tree.ArgumentCommandNode;
+import com.mojang.brigadier.tree.CommandNode;
 import com.mojang.brigadier.tree.RootCommandNode;
 import eu.pb4.mapcanvas.api.core.CanvasColor;
 import eu.pb4.mapcanvas.api.core.CanvasImage;
 import eu.pb4.mapcanvas.api.font.DefaultFonts;
 import eu.pb4.mapcanvas.api.utils.CanvasUtils;
+import net.minecraft.command.suggestion.SuggestionProviders;
 import net.minecraft.network.packet.s2c.play.CommandTreeS2CPacket;
+import net.minecraft.server.command.ServerCommandSource;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.text.Text;
+import net.minecraft.util.Identifier;
 import net.minecraft.util.math.MathHelper;
+import org.jetbrains.annotations.Nullable;
 import space.essem.image2map.Image2Map;
 import space.essem.image2map.renderer.MapRenderer;
 
@@ -44,7 +51,24 @@ public class PreviewGui extends MapGui {
         this.source = source;
         this.sourceImage = image;
 
-        player.networkHandler.sendPacket(new CommandTreeS2CPacket((RootCommandNode) COMMANDS.getRoot()));
+        player.networkHandler.sendPacket(new CommandTreeS2CPacket(COMMANDS.getRoot(), new CommandTreeS2CPacket.CommandNodeInspector<>() {
+            @Nullable
+            @Override
+            public Identifier getSuggestionProviderId(ArgumentCommandNode<PreviewGui, ?> node) {
+                var suggestionProvider = node.getCustomSuggestions();
+                return suggestionProvider != null ? SuggestionProviders.computeId(suggestionProvider) : null;
+            }
+
+            @Override
+            public boolean isExecutable(CommandNode<PreviewGui> node) {
+                return node.getCommand() != null;
+            }
+
+            @Override
+            public boolean hasRequiredLevel(CommandNode<PreviewGui> node) {
+                return false;
+            }
+        }));
 
         this.updateImage();
 
@@ -186,7 +210,7 @@ public class PreviewGui extends MapGui {
             if (x.getSource().imageProcessing == null) {
                 x.getSource().drawLoading();
                 Image2Map.giveToPlayer(x.getSource().player,
-                        MapRenderer.toVanillaItems(x.getSource().image, x.getSource().player.getServerWorld(), x.getSource().source),
+                        MapRenderer.toVanillaItems(x.getSource().image, x.getSource().player.getWorld(), x.getSource().source),
                         x.getSource().source, x.getSource().width, x.getSource().height);
 
                 x.getSource().close();
@@ -198,6 +222,11 @@ public class PreviewGui extends MapGui {
 
         COMMANDS.register(literal("size")
                 .then(argument("width", IntegerArgumentType.integer(1))
+                        .executes(x -> {
+                            var w = IntegerArgumentType.getInteger(x, "width");
+                            x.getSource().setSize(w, x.getSource().sourceImage.getHeight() * w / x.getSource().sourceImage.getWidth());
+                            return 0;
+                        })
                         .then(argument("height", IntegerArgumentType.integer(1)).executes(x -> {
                             x.getSource().setSize(IntegerArgumentType.getInteger(x, "width"), IntegerArgumentType.getInteger(x, "height"));
                             return 0;

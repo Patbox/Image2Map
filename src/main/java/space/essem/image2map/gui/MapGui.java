@@ -3,6 +3,7 @@ package space.essem.image2map.gui;
 import com.google.common.base.Predicates;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.tree.ArgumentCommandNode;
+import com.mojang.brigadier.tree.CommandNode;
 import com.mojang.brigadier.tree.RootCommandNode;
 import eu.pb4.mapcanvas.api.core.*;
 import eu.pb4.mapcanvas.api.utils.VirtualDisplay;
@@ -25,6 +26,7 @@ import net.minecraft.network.packet.c2s.play.ClientCommandC2SPacket;
 import net.minecraft.network.packet.c2s.play.PlayerActionC2SPacket;
 import net.minecraft.network.packet.s2c.play.*;
 import net.minecraft.server.network.ServerPlayerEntity;
+import net.minecraft.util.Identifier;
 import net.minecraft.util.PlayerInput;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Direction;
@@ -62,7 +64,7 @@ public class MapGui extends HotbarGui {
         var pos = player.getBlockPos().withY(2048);
         this.pos = pos;
 
-        this.entity = new HorseEntity(EntityType.HORSE, player.getServerWorld());
+        this.entity = new HorseEntity(EntityType.HORSE, player.getWorld());
         this.entity.setYaw(0);
         this.entity.setHeadYaw(0);
         this.entity.setNoGravity(true);
@@ -147,7 +149,7 @@ public class MapGui extends HotbarGui {
     public void onClose() {
         //this.cursor.remove();
         this.destroy();
-        this.player.server.getCommandManager().sendCommandTree(this.player);
+        this.player.getServer().getCommandManager().sendCommandTree(this.player);
         this.player.networkHandler.sendPacket(new SetCameraEntityS2CPacket(this.player));
         this.player.networkHandler.sendPacket(new EntitiesDestroyS2CPacket(this.entity.getId()));
         if (!this.additionalEntities.isEmpty()) {
@@ -236,7 +238,23 @@ public class MapGui extends HotbarGui {
             )
         );
 
-        COMMAND_PACKET = new CommandTreeS2CPacket(commandNode);
+        COMMAND_PACKET = new CommandTreeS2CPacket(commandNode, new CommandTreeS2CPacket.CommandNodeInspector<CommandSource>() {
+            @Nullable
+            @Override
+            public Identifier getSuggestionProviderId(ArgumentCommandNode<CommandSource, ?> node) {
+                return null;
+            }
+
+            @Override
+            public boolean isExecutable(CommandNode<CommandSource> node) {
+                return true;
+            }
+
+            @Override
+            public boolean hasRequiredLevel(CommandNode<CommandSource> node) {
+                return false;
+            }
+        });
     }
 
 

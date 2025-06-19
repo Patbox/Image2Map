@@ -44,7 +44,7 @@ public abstract class ServerPlayNetworkHandlerMixin extends ServerCommonNetworkH
             double l = instance.getX() - this.lastTickX;
             double m = instance.getY() - this.lastTickY;
             double n = instance.getZ() - this.lastTickZ;
-            this.player.getServerWorld().getChunkManager().updatePosition(this.player);
+            this.player.getWorld().getChunkManager().updatePosition(this.player);
             this.player.handleFall(l, m , n, player.isOnGround());
             this.player.setOnGround(player.isOnGround());
             this.syncWithPlayerPosition();
