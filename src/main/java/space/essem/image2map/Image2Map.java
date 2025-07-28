@@ -473,7 +473,7 @@ public class Image2Map implements ModInitializer {
         return codec.isSuccess() ? codec.getOrThrow() : null;
     }
 
-    private static @Nullable String getUrlFromLore(ItemStack stack) {
+    private static @Nullable String getInputPathFromLore(ItemStack stack) {
         if (getImageData(stack) == null) {
             return null;
         }
@@ -483,17 +483,7 @@ public class Image2Map implements ModInitializer {
             return null;
         }
 
-        // This could be simplified to lore.lines().getLast().getString() currently,
-        // however doing it this way ensures future compatibility with any
-        // added lore elements.
-        for (var line : lore.lines()) {
-            var lineString = line.getString();
-            if (lineString.startsWith("http://") || lineString.startsWith("https://")) {
-                return lineString;
-            }
-        }
-
-        return null;
+        return lore.lines().getLast().getString();
     }
 
     public static boolean destroyItemFrame(ServerWorld serverWorld, Entity player, ItemFrameEntity itemFrameEntity) {
@@ -558,9 +548,9 @@ public class Image2Map implements ModInitializer {
             }
 
             if (!frameItems.isEmpty()) {
-                String url = getUrlFromLore(frameItems.getFirst());
-                if (url == null) {
-                    url = "unknown";
+                String inputPath = getInputPathFromLore(frameItems.getFirst());
+                if (inputPath == null) {
+                    inputPath = "unknown";
                 }
 
                 // Clear the right/down/facing data from the items,
@@ -586,7 +576,7 @@ public class Image2Map implements ModInitializer {
                     );
                 }
 
-                itemFrameEntity.dropStack(serverWorld, toSingleStack(frameItems, url, width * 128, height * 128));
+                itemFrameEntity.dropStack(serverWorld, toSingleStack(frameItems, inputPath, width * 128, height * 128));
             }
 
             return true;
@@ -630,11 +620,11 @@ public class Image2Map implements ModInitializer {
             return true;
         }
 
-        var bundleUrl = getUrlFromLore(bundle);
-        var mapUrl = getUrlFromLore(item);
+        var bundleInputPath = getInputPathFromLore(bundle);
+        var mapInputPath = getInputPathFromLore(item);
 
-        // Block insert if there's either no URL for either of the items, or they don't match
-        if (bundleUrl == null || !bundleUrl.equals(mapUrl)) {
+        // Block insert if there's either no input for either of the items, or they don't match
+        if (bundleInputPath == null || !bundleInputPath.equals(mapInputPath)) {
             return true;
         }
 
