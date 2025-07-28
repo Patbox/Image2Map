@@ -20,26 +20,22 @@ import net.minecraft.component.type.BundleContentsComponent;
 import net.minecraft.component.type.LoreComponent;
 import net.minecraft.component.type.NbtComponent;
 import net.minecraft.entity.Entity;
-import net.minecraft.entity.data.DataTracker;
 import net.minecraft.entity.decoration.ItemFrameEntity;
 import net.minecraft.entity.player.PlayerEntity;
-import net.minecraft.item.BundleItem;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
-import net.minecraft.nbt.*;
+import net.minecraft.nbt.NbtOps;
 import net.minecraft.server.command.ServerCommandSource;
+import net.minecraft.server.world.ServerWorld;
 import net.minecraft.text.HoverEvent;
 import net.minecraft.text.Style;
 import net.minecraft.text.Text;
 import net.minecraft.util.Formatting;
 import net.minecraft.util.Hand;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.BlockPos.Mutable;
 import net.minecraft.util.math.Box;
 import net.minecraft.util.math.Direction;
 import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.Vec3d;
-import net.minecraft.world.World;
 import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
 import space.essem.image2map.config.Image2MapConfig;
@@ -48,11 +44,9 @@ import space.essem.image2map.renderer.MapRenderer;
 
 import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
-import java.io.File;
 import java.io.IOException;
 import java.net.URI;
 import java.net.URL;
-import java.net.URLConnection;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
@@ -62,9 +56,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.time.Duration;
-import java.time.temporal.TemporalUnit;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -472,7 +466,37 @@ public class Image2Map implements ModInitializer {
         return false;
     }
 
-    public static boolean destroyItemFrame(Entity player, ItemFrameEntity itemFrameEntity) {
+    private static @Nullable ImageData getImageData(ItemStack item) {
+        var tag = item.get(DataComponentTypes.CUSTOM_DATA);
+        if (tag == null) return null;
+        var codec = tag.get(ImageData.CODEC);
+        return codec.isSuccess() ? codec.getOrThrow() : null;
+    }
+
+    private static @Nullable String getUrlFromLore(ItemStack stack) {
+        if (getImageData(stack) == null) {
+            return null;
+        }
+
+        var lore = stack.get(DataComponentTypes.LORE);
+        if (lore == null || lore.lines().isEmpty()) {
+            return null;
+        }
+
+        // This could be simplified to lore.lines().getLast().getString() currently,
+        // however doing it this way ensures future compatibility with any
+        // added lore elements.
+        for (var line : lore.lines()) {
+            var lineString = line.getString();
+            if (lineString.startsWith("http://") || lineString.startsWith("https://")) {
+                return lineString;
+            }
+        }
+
+        return null;
+    }
+
+    public static boolean destroyItemFrame(ServerWorld serverWorld, Entity player, ItemFrameEntity itemFrameEntity) {
         var stack = itemFrameEntity.getHeldItemStack();
         var tag = stack.getOrDefault(DataComponentTypes.CUSTOM_DATA, NbtComponent.DEFAULT).get(ImageData.CODEC);
 
@@ -489,6 +513,7 @@ public class Image2Map implements ModInitializer {
             Direction facing = tag.getOrThrow().facing().get();
 
             var world = itemFrameEntity.getWorld();
+            var itemFramePosition = itemFrameEntity.getBlockPos();
             var start = itemFrameEntity.getBlockPos();
 
             var mut = start.mutableCopy();
@@ -498,27 +523,70 @@ public class Image2Map implements ModInitializer {
 
             start = mut.toImmutable();
 
-            for (var x = 0; x < width; x++) {
-                for (var y = 0; y < height; y++) {
+            ArrayList<ItemStack> frameItems = new ArrayList<>();
+
+            for (var y = 0; y < height; y++) {
+                for (var x = 0; x < width; x++) {
                     mut.set(start);
                     mut.move(right, x);
                     mut.move(down, y);
                     var entities = world.getEntitiesByClass(ItemFrameEntity.class, Box.from(Vec3d.of(mut)),
                             (entity1) -> entity1.getHorizontalFacing() == facing && entity1.getBlockPos().equals(mut));
-                    if (!entities.isEmpty()) {
-                        var frame = entities.get(0);
 
+                    // Fix for the item frame technically not existing in the world
+                    // after the block holding it has been destroyed
+                    ItemFrameEntity frame = null;
+                    if (!entities.isEmpty()) {
+                        frame = entities.getFirst();
+                    } else if (itemFramePosition.equals(mut)) {
+                        frame = itemFrameEntity;
+                    }
+
+                    if (frame != null) {
                         // Only apply to frames that contain an image2map map
                         var frameStack = frame.getHeldItemStack();
                         tag = frameStack.getOrDefault(DataComponentTypes.CUSTOM_DATA, NbtComponent.DEFAULT).get(ImageData.CODEC);
 
                         if (frameStack.getItem() == Items.FILLED_MAP && tag.isSuccess() && tag.getOrThrow().right().isPresent()
                                 && tag.getOrThrow().down().isPresent() && tag.getOrThrow().facing().isPresent()) {
+                            frameItems.add(frameStack);
                             frame.setHeldItemStack(ItemStack.EMPTY, true);
                             frame.setInvisible(false);
                         }
                     }
                 }
+            }
+
+            if (!frameItems.isEmpty()) {
+                String url = getUrlFromLore(frameItems.getFirst());
+                if (url == null) {
+                    url = "unknown";
+                }
+
+                // Clear the right/down/facing data from the items,
+                // so they don't get batch removed if placed individually later.
+                for (ItemStack item : frameItems) {
+                    var customData = item.getOrDefault(DataComponentTypes.CUSTOM_DATA, NbtComponent.DEFAULT).get(ImageData.CODEC).getOrThrow();
+                    item.set(
+                        DataComponentTypes.CUSTOM_DATA,
+                        NbtComponent.DEFAULT.with(
+                            NbtOps.INSTANCE,
+                            ImageData.CODEC,
+                            new ImageData(
+                                customData.x(),
+                                customData.y(),
+                                customData.width(),
+                                customData.height(),
+                                customData.quickPlace(),
+                                Optional.empty(),
+                                Optional.empty(),
+                                Optional.empty()
+                            )
+                        ).getOrThrow()
+                    );
+                }
+
+                itemFrameEntity.dropStack(serverWorld, toSingleStack(frameItems, url, width * 128, height * 128));
             }
 
             return true;
