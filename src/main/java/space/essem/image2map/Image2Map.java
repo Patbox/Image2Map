@@ -595,6 +595,69 @@ public class Image2Map implements ModInitializer {
         return false;
     }
 
+    public static void destroyBundleOnEmpty(ItemStack bundle) {
+        if (getImageData(bundle) == null) {
+            return;
+        }
+
+        var contents = bundle.get(DataComponentTypes.BUNDLE_CONTENTS);
+        if (contents == null || contents.isEmpty()) {
+            bundle.decrement(1);
+        }
+    }
+
+    public static boolean isInvalidMapForBundle(ItemStack bundle, ItemStack item) {
+        if (item.isOf(Items.AIR)) {
+            return false;
+        }
+
+        var bundleData = getImageData(bundle);
+
+        // Allow insert if bundle isn't an image2map bundle
+        if (bundleData == null) {
+            return false;
+        }
+
+        // Block insert if item isn't a map
+        if (!item.isOf(Items.FILLED_MAP)) {
+            return true;
+        }
+
+        var mapData = getImageData(item);
+
+        // Block insert if map isn't an image2map map
+        if (mapData == null) {
+            return true;
+        }
+
+        var bundleUrl = getUrlFromLore(bundle);
+        var mapUrl = getUrlFromLore(item);
+
+        // Block insert if there's either no URL for either of the items, or they don't match
+        if (bundleUrl == null || !bundleUrl.equals(mapUrl)) {
+            return true;
+        }
+
+        var bundleMaps = bundle.get(DataComponentTypes.BUNDLE_CONTENTS);
+
+        // Potential edge case for empty image2map bundle? Best to check either way.
+        // Allow insert if bundle is empty.
+        if (bundleMaps == null) {
+            return false;
+        }
+
+        // Block insert if the bundle already contains a map with the same tiling coordinates.
+        for (var map : bundleMaps.iterate()) {
+            var data = getImageData(map);
+            if (data == null) continue;
+            if (data.x() == mapData.x() && data.y() == mapData.y()) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     private static boolean isValid(String url) {
         try {
             new URL(url).toURI();
