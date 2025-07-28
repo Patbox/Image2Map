@@ -431,6 +431,17 @@ public class Image2Map implements ModInitializer {
                     var entities = world.getEntitiesByClass(ItemFrameEntity.class, Box.from(Vec3d.of(mut)), (entity1) -> entity1.getHorizontalFacing() == facing && entity1.getBlockPos().equals(mut));
                     if (!entities.isEmpty()) {
                         frames[x + y * width] = entities.get(0);
+                    } else {
+                        player.sendMessage(
+                          Text.literal(
+                            String.format(
+                              "Item frame wall is not large enough, expected %dx%d or larger",
+                              width, height
+                            )
+                          ),
+                          false
+                        );
+                        return true;
                     }
                 }
             }
