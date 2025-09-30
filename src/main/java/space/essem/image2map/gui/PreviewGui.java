@@ -210,7 +210,7 @@ public class PreviewGui extends MapGui {
             if (x.getSource().imageProcessing == null) {
                 x.getSource().drawLoading();
                 Image2Map.giveToPlayer(x.getSource().player,
-                        MapRenderer.toVanillaItems(x.getSource().image, x.getSource().player.getWorld(), x.getSource().source),
+                        MapRenderer.toVanillaItems(x.getSource().image, x.getSource().player.getEntityWorld(), x.getSource().source),
                         x.getSource().source, x.getSource().width, x.getSource().height);
 
                 x.getSource().close();

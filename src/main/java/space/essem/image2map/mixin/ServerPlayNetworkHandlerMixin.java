@@ -38,13 +38,13 @@ public abstract class ServerPlayNetworkHandlerMixin extends ServerCommonNetworkH
         super(server, connection, clientData);
     }
 
-    @WrapWithCondition(method = "tick", at = @At(value = "INVOKE", target = "Lnet/minecraft/server/network/ServerPlayerEntity;updatePositionAndAngles(DDDFF)V"))
+    @WrapWithCondition(method = "method_73086", at = @At(value = "INVOKE", target = "Lnet/minecraft/server/network/ServerPlayerEntity;updatePositionAndAngles(DDDFF)V"))
     private boolean image2map$allowMovement(ServerPlayerEntity instance, double x, double y, double z, float p, float yaw) {
         if (this.player.currentScreenHandler instanceof VirtualScreenHandlerInterface handler && handler.getGui() instanceof MapGui computerGui) {
             double l = instance.getX() - this.lastTickX;
             double m = instance.getY() - this.lastTickY;
             double n = instance.getZ() - this.lastTickZ;
-            this.player.getWorld().getChunkManager().updatePosition(this.player);
+            this.player.getEntityWorld().getChunkManager().updatePosition(this.player);
             this.player.handleFall(l, m , n, player.isOnGround());
             this.player.setOnGround(player.isOnGround());
             this.syncWithPlayerPosition();

@@ -378,8 +378,8 @@ public class Image2Map implements ModInitializer {
         } else {
             var bundle = new ItemStack(Items.BUNDLE);
             bundle.set(DataComponentTypes.BUNDLE_CONTENTS, new BundleContentsComponent(items));
-            bundle.set(DataComponentTypes.CUSTOM_DATA, NbtComponent.DEFAULT.with(NbtOps.INSTANCE, ImageData.CODEC,
-                    ImageData.ofBundle(MathHelper.ceil(width / 128d), MathHelper.ceil(height / 128d))).getOrThrow());
+            bundle.set(DataComponentTypes.CUSTOM_DATA, NbtComponent.of(ImageData.CODEC.codec().encodeStart(NbtOps.INSTANCE,
+                    ImageData.ofBundle(MathHelper.ceil(width / 128d), MathHelper.ceil(height / 128d))).result().orElseThrow().asCompound().orElseThrow()));
 
             bundle.set(DataComponentTypes.LORE, new LoreComponent(List.of(Text.literal(input))));
             bundle.set(DataComponentTypes.ITEM_NAME, Text.literal("Maps").formatted(Formatting.GOLD));
@@ -390,13 +390,13 @@ public class Image2Map implements ModInitializer {
 
     public static boolean clickItemFrame(PlayerEntity player, Hand hand, ItemFrameEntity itemFrameEntity) {
         var stack = player.getStackInHand(hand);
-        var bundleData = stack.getOrDefault(DataComponentTypes.CUSTOM_DATA, NbtComponent.DEFAULT).get(ImageData.CODEC);
+        var bundleData = stack.getOrDefault(DataComponentTypes.CUSTOM_DATA, NbtComponent.DEFAULT).copyNbt().decode(ImageData.CODEC);
 
-        if (stack.isOf(Items.BUNDLE) && bundleData.isSuccess() && bundleData.getOrThrow().quickPlace()) {
-            var world = itemFrameEntity.getWorld();
+        if (stack.isOf(Items.BUNDLE) && bundleData.isPresent() && bundleData.orElseThrow().quickPlace()) {
+            var world = itemFrameEntity.getEntityWorld();
             var start = itemFrameEntity.getBlockPos();
-            var width = bundleData.getOrThrow().width();
-            var height = bundleData.getOrThrow().height();
+            var width = bundleData.orElseThrow().width();
+            var height = bundleData.orElseThrow().height();
 
             var frames = new ItemFrameEntity[width * height];
 
@@ -436,14 +436,14 @@ public class Image2Map implements ModInitializer {
             }
 
             for (var map : stack.getOrDefault(DataComponentTypes.BUNDLE_CONTENTS, BundleContentsComponent.DEFAULT).iterate()) {
-                var mapData = map.getOrDefault(DataComponentTypes.CUSTOM_DATA, NbtComponent.DEFAULT).get(ImageData.CODEC);
+                var mapData = map.getOrDefault(DataComponentTypes.CUSTOM_DATA, NbtComponent.DEFAULT).copyNbt().decode(ImageData.CODEC);
 
-                if (mapData.isSuccess() && mapData.getOrThrow().isReal()) {
+                if (mapData.isPresent() && mapData.orElseThrow().isReal()) {
                     map = map.copy();
-                    var newData = mapData.getOrThrow().withDirection(right, down, facing);
-                    map.apply(DataComponentTypes.CUSTOM_DATA, NbtComponent.DEFAULT, x -> x.with(NbtOps.INSTANCE, ImageData.CODEC, newData).getOrThrow());
+                    var newData = mapData.orElseThrow().withDirection(right, down, facing);
+                    map.set(DataComponentTypes.CUSTOM_DATA, NbtComponent.of(ImageData.CODEC.codec().encodeStart(NbtOps.INSTANCE, newData).result().orElseThrow().asCompound().orElseThrow()));
 
-                    var frame = frames[mapData.getOrThrow().x() + mapData.getOrThrow().y() * width];
+                    var frame = frames[mapData.orElseThrow().x() + mapData.orElseThrow().y() * width];
 
                     if (frame != null && frame.getHeldItemStack().isEmpty()) {
                         frame.setHeldItemStack(map);
@@ -463,21 +463,21 @@ public class Image2Map implements ModInitializer {
 
     public static boolean destroyItemFrame(Entity player, ItemFrameEntity itemFrameEntity) {
         var stack = itemFrameEntity.getHeldItemStack();
-        var tag = stack.getOrDefault(DataComponentTypes.CUSTOM_DATA, NbtComponent.DEFAULT).get(ImageData.CODEC);
+        var tag = stack.getOrDefault(DataComponentTypes.CUSTOM_DATA, NbtComponent.DEFAULT).copyNbt().decode(ImageData.CODEC);
 
 
-        if (stack.getItem() == Items.FILLED_MAP && tag.isSuccess() && tag.getOrThrow().right().isPresent()
-                && tag.getOrThrow().down().isPresent() && tag.getOrThrow().facing().isPresent()) {
-            var xo = tag.getOrThrow().x();
-            var yo = tag.getOrThrow().y();
-            var width = tag.getOrThrow().width();
-            var height = tag.getOrThrow().height();
+        if (stack.getItem() == Items.FILLED_MAP && tag.isPresent() && tag.orElseThrow().right().isPresent()
+                && tag.orElseThrow().down().isPresent() && tag.orElseThrow().facing().isPresent()) {
+            var xo = tag.orElseThrow().x();
+            var yo = tag.orElseThrow().y();
+            var width = tag.orElseThrow().width();
+            var height = tag.orElseThrow().height();
 
-            Direction right = tag.getOrThrow().right().get();
-            Direction down = tag.getOrThrow().down().get();
-            Direction facing = tag.getOrThrow().facing().get();
+            Direction right = tag.orElseThrow().right().get();
+            Direction down = tag.orElseThrow().down().get();
+            Direction facing = tag.orElseThrow().facing().get();
 
-            var world = itemFrameEntity.getWorld();
+            var world = itemFrameEntity.getEntityWorld();
             var start = itemFrameEntity.getBlockPos();
 
             var mut = start.mutableCopy();
@@ -499,10 +499,10 @@ public class Image2Map implements ModInitializer {
 
                         // Only apply to frames that contain an image2map map
                         var frameStack = frame.getHeldItemStack();
-                        tag = frameStack.getOrDefault(DataComponentTypes.CUSTOM_DATA, NbtComponent.DEFAULT).get(ImageData.CODEC);
+                        tag = frameStack.getOrDefault(DataComponentTypes.CUSTOM_DATA, NbtComponent.DEFAULT).copyNbt().decode(ImageData.CODEC);
 
-                        if (frameStack.getItem() == Items.FILLED_MAP && tag.isSuccess() && tag.getOrThrow().right().isPresent()
-                                && tag.getOrThrow().down().isPresent() && tag.getOrThrow().facing().isPresent()) {
+                        if (frameStack.getItem() == Items.FILLED_MAP && tag.isPresent() && tag.orElseThrow().right().isPresent()
+                                && tag.orElseThrow().down().isPresent() && tag.orElseThrow().facing().isPresent()) {
                             frame.setHeldItemStack(ItemStack.EMPTY, true);
                             frame.setInvisible(false);
                         }

@@ -95,7 +95,7 @@ public class MapRenderer {
                 var stack = new ItemStack(Items.FILLED_MAP);
                 stack.set(DataComponentTypes.MAP_ID, id);
                 var data = ImageData.ofSimple(xs, ys, xSections, ySections);
-                stack.apply(DataComponentTypes.CUSTOM_DATA, NbtComponent.DEFAULT, x -> x.with(NbtOps.INSTANCE, ImageData.CODEC, data).getOrThrow());
+                stack.set(DataComponentTypes.CUSTOM_DATA, NbtComponent.of(ImageData.CODEC.codec().encodeStart(NbtOps.INSTANCE, data).result().orElseThrow().asCompound().orElseThrow()));
                 stack.set(DataComponentTypes.LORE, new LoreComponent(List.of(
                         Text.literal(xs + " / " + ys).formatted(Formatting.GRAY),
                         Text.literal(url)

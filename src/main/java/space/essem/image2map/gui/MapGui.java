@@ -17,7 +17,7 @@ import net.minecraft.entity.Entity;
 import net.minecraft.entity.EntityType;
 import net.minecraft.entity.MovementType;
 import net.minecraft.entity.passive.HorseEntity;
-import net.minecraft.entity.player.PlayerPosition;
+import net.minecraft.entity.EntityPosition;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
 import net.minecraft.network.PacketByteBuf;
@@ -64,7 +64,7 @@ public class MapGui extends HotbarGui {
         var pos = player.getBlockPos().withY(2048);
         this.pos = pos;
 
-        this.entity = new HorseEntity(EntityType.HORSE, player.getWorld());
+        this.entity = new HorseEntity(EntityType.HORSE, player.getEntityWorld());
         this.entity.setYaw(0);
         this.entity.setHeadYaw(0);
         this.entity.setNoGravity(true);
@@ -102,12 +102,12 @@ public class MapGui extends HotbarGui {
     protected void resizeCanvas(int width, int height) {
         this.destroy();
         this.initialize(width, height);
-        this.player.networkHandler.sendPacket(new EntityPositionS2CPacket(this.entity.getId(), new PlayerPosition(this.entity.getPos(), Vec3d.ZERO, this.entity.getYaw(), this.entity.getPitch()), Set.of(), false));
+        this.player.networkHandler.sendPacket(new EntityPositionS2CPacket(this.entity.getId(), new EntityPosition(this.entity.getEntityPos(), Vec3d.ZERO, this.entity.getYaw(), this.entity.getPitch()), Set.of(), false));
     }
 
     protected void initialize(int width, int height) {
         this.canvas = DrawableCanvas.create(width, height);
-        this.virtualDisplay = VirtualDisplay.of(this.canvas, pos, Direction.NORTH, 0, true);
+        this.virtualDisplay = VirtualDisplay.builder(this.canvas, pos, Direction.NORTH).glowing().build();
         //this.renderer = CanvasRenderer.of(new CanvasImage(this.canvas.getWidth(), this.canvas.getHeight()));
 
         this.canvas.addPlayer(player);
@@ -149,14 +149,14 @@ public class MapGui extends HotbarGui {
     public void onClose() {
         //this.cursor.remove();
         this.destroy();
-        this.player.getServer().getCommandManager().sendCommandTree(this.player);
+        this.player.getEntityWorld().getServer().getCommandManager().sendCommandTree(this.player);
         this.player.networkHandler.sendPacket(new SetCameraEntityS2CPacket(this.player));
         this.player.networkHandler.sendPacket(new EntitiesDestroyS2CPacket(this.entity.getId()));
         if (!this.additionalEntities.isEmpty()) {
             this.player.networkHandler.sendPacket(new EntitiesDestroyS2CPacket(this.additionalEntities));
         }
         this.player.networkHandler.sendPacket(new GameStateChangeS2CPacket(GameStateChangeS2CPacket.GAME_MODE_CHANGED, this.player.interactionManager.getGameMode().getIndex()));
-        this.player.networkHandler.sendPacket(new PlayerPositionLookS2CPacket(this.player.getId(), new PlayerPosition(this.player.getPos(), Vec3d.ZERO, this.player.getYaw(), this.player.getPitch()), Set.of()));
+        this.player.networkHandler.sendPacket(new PlayerPositionLookS2CPacket(this.player.getId(), new EntityPosition(this.player.getEntityPos(), Vec3d.ZERO, this.player.getYaw(), this.player.getPitch()), Set.of()));
         if (this.player.hasVehicle()) {
             this.player.networkHandler.sendPacket(new EntityPassengersSetS2CPacket(Objects.requireNonNull(this.player.getVehicle())));
         }
@@ -204,7 +204,7 @@ public class MapGui extends HotbarGui {
 
     public void setDistance(double i) {
         this.entity.setPos(this.entity.getX(), this.entity.getY(), this.pos.getZ() - i);
-        this.player.networkHandler.sendPacket(new EntityPositionS2CPacket(this.entity.getId(), new PlayerPosition(this.entity.getPos(), Vec3d.ZERO, this.entity.getYaw(), this.entity.getPitch()), Set.of(), false));
+        this.player.networkHandler.sendPacket(new EntityPositionS2CPacket(this.entity.getId(), new EntityPosition(this.entity.getEntityPos(), Vec3d.ZERO, this.entity.getYaw(), this.entity.getPitch()), Set.of(), false));
     }
 
     @Override
