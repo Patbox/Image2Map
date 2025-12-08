@@ -38,7 +38,7 @@ public abstract class ServerPlayNetworkHandlerMixin extends ServerCommonNetworkH
         super(server, connection, clientData);
     }
 
-    @WrapWithCondition(method = "method_73086", at = @At(value = "INVOKE", target = "Lnet/minecraft/server/network/ServerPlayerEntity;updatePositionAndAngles(DDDFF)V"))
+    @WrapWithCondition(method = "tickMovement", at = @At(value = "INVOKE", target = "Lnet/minecraft/server/network/ServerPlayerEntity;updatePositionAndAngles(DDDFF)V"))
     private boolean image2map$allowMovement(ServerPlayerEntity instance, double x, double y, double z, float p, float yaw) {
         if (this.player.currentScreenHandler instanceof VirtualScreenHandlerInterface handler && handler.getGui() instanceof MapGui computerGui) {
             double l = instance.getX() - this.lastTickX;
