@@ -28,18 +28,6 @@ import space.essem.image2map.Image2Map.DitherMode;
 import space.essem.image2map.ImageData;
 
 public class MapRenderer {
-    private static final double shadeCoeffs[] = { 0.71, 0.86, 1.0, 0.53 };
-
-    private static double distance(double[] vectorA, double[] vectorB) {
-        return Math.sqrt(Math.pow(vectorA[0] - vectorB[0], 2) + Math.pow(vectorA[1] - vectorB[1], 2)
-                + Math.pow(vectorA[2] - vectorB[2], 2));
-    }
-
-    private static double[] applyShade(double[] color, int ind) {
-        double coeff = shadeCoeffs[ind];
-        return new double[] { color[0] * coeff, color[1] * coeff, color[2] * coeff };
-    }
-
     public static CanvasImage render(BufferedImage image, DitherMode mode, int width, int height) {
         Image resizedImage = image.getScaledInstance(width, height, Image.SCALE_DEFAULT);
         BufferedImage resized = convertToBufferedImage(resizedImage);
@@ -142,16 +130,9 @@ public class MapRenderer {
         return stack;
     }*/
 
-    private static int mapColorToRGBColor(CanvasColor color) {
-        var mcColor = color.getRgbColor();
-        double[] mcColorVec = { (double) ARGB.red(mcColor), (double) ARGB.green(mcColor), (double) ARGB.blue(mcColor) };
-        double coeff = shadeCoeffs[color.getColor().id & 3];
-        return ARGB.color(0, (int) (mcColorVec[0] * coeff), (int) (mcColorVec[1] * coeff), (int) (mcColorVec[2] * coeff));
-    }
-
     private static CanvasColor floydDither(int[][] pixels, int x, int y, int imageColor) {
         var closestColor = CanvasUtils.findClosestColorARGB(imageColor);
-        var palletedColor = mapColorToRGBColor(closestColor);
+        var palletedColor = closestColor.getRgbColor();
 
         var errorR = ARGB.red(imageColor) - ARGB.red(palletedColor);
         var errorG = ARGB.green(imageColor) - ARGB.green(palletedColor);
