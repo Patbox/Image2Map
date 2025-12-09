@@ -9,26 +9,21 @@ import java.util.List;
 import eu.pb4.mapcanvas.api.core.CanvasColor;
 import eu.pb4.mapcanvas.api.core.CanvasImage;
 import eu.pb4.mapcanvas.api.utils.CanvasUtils;
-import net.minecraft.component.DataComponentTypes;
-import net.minecraft.component.type.LoreComponent;
-import net.minecraft.component.type.MapIdComponent;
-import net.minecraft.component.type.NbtComponent;
-import net.minecraft.item.FilledMapItem;
-import net.minecraft.item.ItemStack;
-import net.minecraft.item.Items;
-import net.minecraft.item.map.MapState;
-import net.minecraft.nbt.NbtList;
+import net.minecraft.ChatFormatting;
+import net.minecraft.core.component.DataComponents;
+import net.minecraft.core.registries.Registries;
 import net.minecraft.nbt.NbtOps;
-import net.minecraft.nbt.NbtString;
-import net.minecraft.registry.Registries;
-import net.minecraft.registry.RegistryKey;
-import net.minecraft.registry.RegistryKeys;
-import net.minecraft.server.world.ServerWorld;
-import net.minecraft.text.Text;
-import net.minecraft.util.Formatting;
-import net.minecraft.util.Identifier;
-import net.minecraft.util.math.ColorHelper;
-import net.minecraft.util.math.MathHelper;
+import net.minecraft.network.chat.Component;
+import net.minecraft.resources.Identifier;
+import net.minecraft.resources.ResourceKey;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.util.ARGB;
+import net.minecraft.util.Mth;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
+import net.minecraft.world.item.component.CustomData;
+import net.minecraft.world.item.component.ItemLore;
+import net.minecraft.world.level.saveddata.maps.MapItemSavedData;
 import space.essem.image2map.Image2Map.DitherMode;
 import space.essem.image2map.ImageData;
 
@@ -65,9 +60,9 @@ public class MapRenderer {
         return state;
     }
 
-    public static List<ItemStack> toVanillaItems(CanvasImage image, ServerWorld world, String url) {
-        var xSections = MathHelper.ceil(image.getWidth() / 128d);
-        var ySections = MathHelper.ceil(image.getHeight() / 128d);
+    public static List<ItemStack> toVanillaItems(CanvasImage image, ServerLevel world, String url) {
+        var xSections = Mth.ceil(image.getWidth() / 128d);
+        var ySections = Mth.ceil(image.getHeight() / 128d);
 
         var xDelta = (xSections * 128 - image.getWidth()) / 2;
         var yDelta = (ySections * 128 - image.getHeight()) / 2;
@@ -76,8 +71,8 @@ public class MapRenderer {
 
         for (int ys = 0; ys < ySections; ys++) {
             for (int xs = 0; xs < xSections; xs++) {
-                var id = world.increaseAndGetMapId();
-                var state = MapState.of(0, 0, (byte) 0, false, false, RegistryKey.of(RegistryKeys.WORLD, Identifier.of("image2map", "generated")));
+                var id = world.getFreeMapId();
+                var state = MapItemSavedData.createFresh(0, 0, (byte) 0, false, false, ResourceKey.create(Registries.DIMENSION, Identifier.fromNamespaceAndPath("image2map", "generated")));
 
                 for (int xl = 0; xl < 128; xl++) {
                     for (int yl = 0; yl < 128; yl++) {
@@ -90,15 +85,15 @@ public class MapRenderer {
                     }
                 }
 
-                world.putMapState(id, state);
+                world.setMapData(id, state);
 
                 var stack = new ItemStack(Items.FILLED_MAP);
-                stack.set(DataComponentTypes.MAP_ID, id);
+                stack.set(DataComponents.MAP_ID, id);
                 var data = ImageData.ofSimple(xs, ys, xSections, ySections);
-                stack.set(DataComponentTypes.CUSTOM_DATA, NbtComponent.of(ImageData.CODEC.codec().encodeStart(NbtOps.INSTANCE, data).result().orElseThrow().asCompound().orElseThrow()));
-                stack.set(DataComponentTypes.LORE, new LoreComponent(List.of(
-                        Text.literal(xs + " / " + ys).formatted(Formatting.GRAY),
-                        Text.literal(url)
+                stack.set(DataComponents.CUSTOM_DATA, CustomData.of(ImageData.CODEC.codec().encodeStart(NbtOps.INSTANCE, data).result().orElseThrow().asCompound().orElseThrow()));
+                stack.set(DataComponents.LORE, new ItemLore(List.of(
+                        Component.literal(xs + " / " + ys).withStyle(ChatFormatting.GRAY),
+                        Component.literal(url)
                 )));
                 items.add(stack);
             }
@@ -149,18 +144,18 @@ public class MapRenderer {
 
     private static int mapColorToRGBColor(CanvasColor color) {
         var mcColor = color.getRgbColor();
-        double[] mcColorVec = { (double) ColorHelper.getRed(mcColor), (double) ColorHelper.getGreen(mcColor), (double) ColorHelper.getBlue(mcColor) };
+        double[] mcColorVec = { (double) ARGB.red(mcColor), (double) ARGB.green(mcColor), (double) ARGB.blue(mcColor) };
         double coeff = shadeCoeffs[color.getColor().id & 3];
-        return ColorHelper.getArgb(0, (int) (mcColorVec[0] * coeff), (int) (mcColorVec[1] * coeff), (int) (mcColorVec[2] * coeff));
+        return ARGB.color(0, (int) (mcColorVec[0] * coeff), (int) (mcColorVec[1] * coeff), (int) (mcColorVec[2] * coeff));
     }
 
     private static CanvasColor floydDither(int[][] pixels, int x, int y, int imageColor) {
         var closestColor = CanvasUtils.findClosestColorARGB(imageColor);
         var palletedColor = mapColorToRGBColor(closestColor);
 
-        var errorR = ColorHelper.getRed(imageColor) - ColorHelper.getRed(palletedColor);
-        var errorG = ColorHelper.getGreen(imageColor) - ColorHelper.getGreen(palletedColor);
-        var errorB = ColorHelper.getBlue(imageColor) - ColorHelper.getBlue(palletedColor);
+        var errorR = ARGB.red(imageColor) - ARGB.red(palletedColor);
+        var errorG = ARGB.green(imageColor) - ARGB.green(palletedColor);
+        var errorB = ARGB.blue(imageColor) - ARGB.blue(palletedColor);
         if (pixels[0].length > x + 1) {
             pixels[y][x + 1] = applyError(pixels[y][x + 1], errorR, errorG, errorB, 7.0 / 16.0);
         }
@@ -178,10 +173,10 @@ public class MapRenderer {
     }
 
     private static int applyError(int pixelColor, int errorR, int errorG, int errorB, double quantConst) {
-        int pR = clamp( ColorHelper.getRed(pixelColor) + (int) ((double) errorR * quantConst), 0, 255);
-        int pG = clamp(ColorHelper.getGreen(pixelColor) + (int) ((double) errorG * quantConst), 0, 255);
-        int pB = clamp(ColorHelper.getBlue(pixelColor) + (int) ((double) errorB * quantConst), 0, 255);
-        return ColorHelper.getArgb(ColorHelper.getAlpha(pixelColor), pR, pG, pB);
+        int pR = clamp( ARGB.red(pixelColor) + (int) ((double) errorR * quantConst), 0, 255);
+        int pG = clamp(ARGB.green(pixelColor) + (int) ((double) errorG * quantConst), 0, 255);
+        int pB = clamp(ARGB.blue(pixelColor) + (int) ((double) errorB * quantConst), 0, 255);
+        return ARGB.color(ARGB.alpha(pixelColor), pR, pG, pB);
     }
 
     private static int clamp(int i, int min, int max) {

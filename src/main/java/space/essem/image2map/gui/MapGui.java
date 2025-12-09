@@ -11,27 +11,34 @@ import eu.pb4.sgui.api.gui.HotbarGui;
 import io.netty.buffer.Unpooled;
 import it.unimi.dsi.fastutil.ints.IntArrayList;
 import it.unimi.dsi.fastutil.ints.IntList;
-
-import net.minecraft.command.CommandSource;
-import net.minecraft.entity.Entity;
-import net.minecraft.entity.EntityType;
-import net.minecraft.entity.MovementType;
-import net.minecraft.entity.passive.HorseEntity;
-import net.minecraft.entity.EntityPosition;
-import net.minecraft.item.ItemStack;
-import net.minecraft.item.Items;
-import net.minecraft.network.PacketByteBuf;
-import net.minecraft.network.packet.Packet;
-import net.minecraft.network.packet.c2s.play.ClientCommandC2SPacket;
-import net.minecraft.network.packet.c2s.play.PlayerActionC2SPacket;
-import net.minecraft.network.packet.s2c.play.*;
-import net.minecraft.server.network.ServerPlayerEntity;
-import net.minecraft.util.Identifier;
-import net.minecraft.util.PlayerInput;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.Direction;
-import net.minecraft.util.math.Vec3d;
-import net.minecraft.world.GameMode;
+import net.minecraft.commands.SharedSuggestionProvider;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import net.minecraft.network.FriendlyByteBuf;
+import net.minecraft.network.protocol.Packet;
+import net.minecraft.network.protocol.game.ClientboundAddEntityPacket;
+import net.minecraft.network.protocol.game.ClientboundCommandsPacket;
+import net.minecraft.network.protocol.game.ClientboundGameEventPacket;
+import net.minecraft.network.protocol.game.ClientboundMoveEntityPacket;
+import net.minecraft.network.protocol.game.ClientboundPlayerPositionPacket;
+import net.minecraft.network.protocol.game.ClientboundRemoveEntitiesPacket;
+import net.minecraft.network.protocol.game.ClientboundSetCameraPacket;
+import net.minecraft.network.protocol.game.ClientboundSetEntityDataPacket;
+import net.minecraft.network.protocol.game.ClientboundSetPassengersPacket;
+import net.minecraft.network.protocol.game.ClientboundTeleportEntityPacket;
+import net.minecraft.network.protocol.game.ServerboundPlayerActionPacket;
+import net.minecraft.network.protocol.game.ServerboundPlayerCommandPacket;
+import net.minecraft.resources.Identifier;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.PositionMoveRotation;
+import net.minecraft.world.entity.animal.equine.Horse;
+import net.minecraft.world.entity.player.Input;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
+import net.minecraft.world.level.GameType;
+import net.minecraft.world.phys.Vec3;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.Objects;
@@ -59,35 +66,35 @@ public class MapGui extends HotbarGui {
     //public int cursorY;
     //public int mouseMoves;
 
-    public MapGui(ServerPlayerEntity player, int width, int height) {
+    public MapGui(ServerPlayer player, int width, int height) {
         super(player);
-        var pos = player.getBlockPos().withY(2048);
+        var pos = player.blockPosition().atY(2048);
         this.pos = pos;
 
-        this.entity = new HorseEntity(EntityType.HORSE, player.getEntityWorld());
-        this.entity.setYaw(0);
-        this.entity.setHeadYaw(0);
+        this.entity = new Horse(EntityType.HORSE, player.level());
+        this.entity.setYRot(0);
+        this.entity.setYHeadRot(0);
         this.entity.setNoGravity(true);
-        this.entity.setPitch(0);
+        this.entity.setXRot(0);
         this.entity.setInvisible(true);
         this.initialize(width, height);
 
         //this.cursorX = this.canvas.getWidth();
         //this.cursorY = this.canvas.getHeight(); // MapDecoration.Type.TARGET_POINT
         //this.cursor = null;//this.canvas.createIcon(MapIcon.Type.TARGET_POINT, true, this.cursorX, this.cursorY, (byte) 14, null);
-        player.networkHandler.sendPacket(new EntitySpawnS2CPacket(this.entity.getId(), this.entity.getUuid(),
-                this.entity.getX(), this.entity.getY(), this.entity.getZ(), this.entity.getPitch(), entity.getYaw(), entity.getType(), 0, Vec3d.ZERO, entity.getHeadYaw()));
+        player.connection.send(new ClientboundAddEntityPacket(this.entity.getId(), this.entity.getUUID(),
+                this.entity.getX(), this.entity.getY(), this.entity.getZ(), this.entity.getXRot(), entity.getYRot(), entity.getType(), 0, Vec3.ZERO, entity.getYHeadRot()));
 
-        player.networkHandler.sendPacket(new EntityTrackerUpdateS2CPacket(this.entity.getId(), this.entity.getDataTracker().getChangedEntries()));
-        player.networkHandler.sendPacket(new SetCameraEntityS2CPacket(this.entity));
+        player.connection.send(new ClientboundSetEntityDataPacket(this.entity.getId(), this.entity.getEntityData().getNonDefaultValues()));
+        player.connection.send(new ClientboundSetCameraPacket(this.entity));
         //this.xRot = player.getYaw();
         //this.yRot = player.getPitch();
-        var buf = new PacketByteBuf(Unpooled.buffer());
+        var buf = new FriendlyByteBuf(Unpooled.buffer());
         buf.writeVarInt(this.entity.getId());
-        buf.writeIntArray(new int[]{player.getId()});
-        player.networkHandler.sendPacket(EntityPassengersSetS2CPacketAccessor.createEntityPassengersSetS2CPacket(buf));
-        player.networkHandler.sendPacket(new GameStateChangeS2CPacket(GameStateChangeS2CPacket.GAME_MODE_CHANGED, GameMode.SPECTATOR.getIndex()));
-        player.networkHandler.sendPacket(new EntityS2CPacket.Rotate(player.getId(), (byte) 0, (byte) 0, player.isOnGround()));
+        buf.writeVarIntArray(new int[]{player.getId()});
+        player.connection.send(EntityPassengersSetS2CPacketAccessor.createEntityPassengersSetS2CPacket(buf));
+        player.connection.send(new ClientboundGameEventPacket(ClientboundGameEventPacket.CHANGE_GAME_MODE, GameType.SPECTATOR.getId()));
+        player.connection.send(new ClientboundMoveEntityPacket.Rot(player.getId(), (byte) 0, (byte) 0, player.onGround()));
 
         //player.networkHandler.sendPacket(COMMAND_PACKET);
 
@@ -102,7 +109,7 @@ public class MapGui extends HotbarGui {
     protected void resizeCanvas(int width, int height) {
         this.destroy();
         this.initialize(width, height);
-        this.player.networkHandler.sendPacket(new EntityPositionS2CPacket(this.entity.getId(), new EntityPosition(this.entity.getEntityPos(), Vec3d.ZERO, this.entity.getYaw(), this.entity.getPitch()), Set.of(), false));
+        this.player.connection.send(new ClientboundTeleportEntityPacket(this.entity.getId(), new PositionMoveRotation(this.entity.position(), Vec3.ZERO, this.entity.getYRot(), this.entity.getXRot()), Set.of(), false));
     }
 
     protected void initialize(int width, int height) {
@@ -113,7 +120,7 @@ public class MapGui extends HotbarGui {
         this.canvas.addPlayer(player);
         this.virtualDisplay.addPlayer(player);
 
-        this.entity.setPos(pos.getX() - width / 2d + 1, pos.getY() - height / 2d - 0.5, pos.getZ());
+        this.entity.setPosRaw(pos.getX() - width / 2d + 1, pos.getY() - height / 2d - 0.5, pos.getZ());
     }
 
     protected void destroy() {
@@ -149,16 +156,16 @@ public class MapGui extends HotbarGui {
     public void onClose() {
         //this.cursor.remove();
         this.destroy();
-        this.player.getEntityWorld().getServer().getCommandManager().sendCommandTree(this.player);
-        this.player.networkHandler.sendPacket(new SetCameraEntityS2CPacket(this.player));
-        this.player.networkHandler.sendPacket(new EntitiesDestroyS2CPacket(this.entity.getId()));
+        this.player.level().getServer().getCommands().sendCommands(this.player);
+        this.player.connection.send(new ClientboundSetCameraPacket(this.player));
+        this.player.connection.send(new ClientboundRemoveEntitiesPacket(this.entity.getId()));
         if (!this.additionalEntities.isEmpty()) {
-            this.player.networkHandler.sendPacket(new EntitiesDestroyS2CPacket(this.additionalEntities));
+            this.player.connection.send(new ClientboundRemoveEntitiesPacket(this.additionalEntities));
         }
-        this.player.networkHandler.sendPacket(new GameStateChangeS2CPacket(GameStateChangeS2CPacket.GAME_MODE_CHANGED, this.player.interactionManager.getGameMode().getIndex()));
-        this.player.networkHandler.sendPacket(new PlayerPositionLookS2CPacket(this.player.getId(), new EntityPosition(this.player.getEntityPos(), Vec3d.ZERO, this.player.getYaw(), this.player.getPitch()), Set.of()));
-        if (this.player.hasVehicle()) {
-            this.player.networkHandler.sendPacket(new EntityPassengersSetS2CPacket(Objects.requireNonNull(this.player.getVehicle())));
+        this.player.connection.send(new ClientboundGameEventPacket(ClientboundGameEventPacket.CHANGE_GAME_MODE, this.player.gameMode.getGameModeForPlayer().getId()));
+        this.player.connection.send(new ClientboundPlayerPositionPacket(this.player.getId(), new PositionMoveRotation(this.player.position(), Vec3.ZERO, this.player.getYRot(), this.player.getXRot()), Set.of()));
+        if (this.player.isPassenger()) {
+            this.player.connection.send(new ClientboundSetPassengersPacket(Objects.requireNonNull(this.player.getVehicle())));
         }
         super.onClose();
     }
@@ -192,7 +199,7 @@ public class MapGui extends HotbarGui {
     }
 
     @Override
-    public boolean onClickEntity(int entityId, EntityInteraction type, boolean isSneaking, @Nullable Vec3d interactionPos) {
+    public boolean onClickEntity(int entityId, EntityInteraction type, boolean isSneaking, @Nullable Vec3 interactionPos) {
         /*if (type == EntityInteraction.ATTACK) {
             this.renderer.click(this.cursorX / 2, this.cursorY / 2, ScreenElement.ClickType.LEFT_DOWN);
         } else {
@@ -203,27 +210,27 @@ public class MapGui extends HotbarGui {
     }
 
     public void setDistance(double i) {
-        this.entity.setPos(this.entity.getX(), this.entity.getY(), this.pos.getZ() - i);
-        this.player.networkHandler.sendPacket(new EntityPositionS2CPacket(this.entity.getId(), new EntityPosition(this.entity.getEntityPos(), Vec3d.ZERO, this.entity.getYaw(), this.entity.getPitch()), Set.of(), false));
+        this.entity.setPosRaw(this.entity.getX(), this.entity.getY(), this.pos.getZ() - i);
+        this.player.connection.send(new ClientboundTeleportEntityPacket(this.entity.getId(), new PositionMoveRotation(this.entity.position(), Vec3.ZERO, this.entity.getYRot(), this.entity.getXRot()), Set.of(), false));
     }
 
     @Override
-    public boolean onPlayerAction(PlayerActionC2SPacket.Action action, Direction direction) {
-        if (action == PlayerActionC2SPacket.Action.DROP_ALL_ITEMS) {
+    public boolean onPlayerAction(ServerboundPlayerActionPacket.Action action, Direction direction) {
+        if (action == ServerboundPlayerActionPacket.Action.DROP_ALL_ITEMS) {
             this.close();
         }
         return false;
     }
 
-    public void onPlayerInput(PlayerInput input) {
+    public void onPlayerInput(Input input) {
 
     }
 
-    public void onPlayerCommand(int id, ClientCommandC2SPacket.Mode command, int data) {
+    public void onPlayerCommand(int id, ServerboundPlayerCommandPacket.Action command, int data) {
     }
 
     static {
-        var commandNode = new RootCommandNode<CommandSource>();
+        var commandNode = new RootCommandNode<SharedSuggestionProvider>();
 
         commandNode.addChild(
             new ArgumentCommandNode<>(
@@ -238,20 +245,20 @@ public class MapGui extends HotbarGui {
             )
         );
 
-        COMMAND_PACKET = new CommandTreeS2CPacket(commandNode, new CommandTreeS2CPacket.CommandNodeInspector<CommandSource>() {
+        COMMAND_PACKET = new ClientboundCommandsPacket(commandNode, new ClientboundCommandsPacket.NodeInspector<SharedSuggestionProvider>() {
             @Nullable
             @Override
-            public Identifier getSuggestionProviderId(ArgumentCommandNode<CommandSource, ?> node) {
+            public Identifier suggestionId(ArgumentCommandNode<SharedSuggestionProvider, ?> node) {
                 return null;
             }
 
             @Override
-            public boolean isExecutable(CommandNode<CommandSource> node) {
+            public boolean isExecutable(CommandNode<SharedSuggestionProvider> node) {
                 return true;
             }
 
             @Override
-            public boolean hasRequiredLevel(CommandNode<CommandSource> node) {
+            public boolean isRestricted(CommandNode<SharedSuggestionProvider> node) {
                 return false;
             }
         });

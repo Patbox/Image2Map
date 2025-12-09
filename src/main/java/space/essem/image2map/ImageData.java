@@ -3,9 +3,8 @@ package space.essem.image2map;
 import com.mojang.serialization.Codec;
 import com.mojang.serialization.MapCodec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
-import net.minecraft.util.math.Direction;
-
 import java.util.Optional;
+import net.minecraft.core.Direction;
 
 public record ImageData(int x, int y, int width, int height, boolean quickPlace, Optional<Direction> right, Optional<Direction> down, Optional<Direction> facing) {
     public static final MapCodec<ImageData> CODEC = RecordCodecBuilder.mapCodec(instance -> instance.group(

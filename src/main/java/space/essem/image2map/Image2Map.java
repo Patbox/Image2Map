@@ -15,31 +15,26 @@ import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.fabricmc.loader.api.FabricLoader;
-import net.minecraft.component.DataComponentTypes;
-import net.minecraft.component.type.BundleContentsComponent;
-import net.minecraft.component.type.LoreComponent;
-import net.minecraft.component.type.NbtComponent;
-import net.minecraft.entity.Entity;
-import net.minecraft.entity.data.DataTracker;
-import net.minecraft.entity.decoration.ItemFrameEntity;
-import net.minecraft.entity.player.PlayerEntity;
-import net.minecraft.item.BundleItem;
-import net.minecraft.item.ItemStack;
-import net.minecraft.item.Items;
+import net.minecraft.ChatFormatting;
+import net.minecraft.commands.CommandSourceStack;
+import net.minecraft.core.Direction;
+import net.minecraft.core.component.DataComponents;
 import net.minecraft.nbt.*;
-import net.minecraft.server.command.ServerCommandSource;
-import net.minecraft.text.HoverEvent;
-import net.minecraft.text.Style;
-import net.minecraft.text.Text;
-import net.minecraft.util.Formatting;
-import net.minecraft.util.Hand;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.BlockPos.Mutable;
-import net.minecraft.util.math.Box;
-import net.minecraft.util.math.Direction;
-import net.minecraft.util.math.MathHelper;
-import net.minecraft.util.math.Vec3d;
-import net.minecraft.world.World;
+import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.HoverEvent;
+import net.minecraft.network.chat.Style;
+import net.minecraft.util.Mth;
+import net.minecraft.world.InteractionHand;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.decoration.ItemFrame;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
+import net.minecraft.world.item.component.BundleContents;
+import net.minecraft.world.item.component.CustomData;
+import net.minecraft.world.item.component.ItemLore;
+import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.Vec3;
 import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
 import space.essem.image2map.config.Image2MapConfig;
@@ -69,8 +64,8 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
-import static net.minecraft.server.command.CommandManager.argument;
-import static net.minecraft.server.command.CommandManager.literal;
+import static net.minecraft.commands.Commands.argument;
+import static net.minecraft.commands.Commands.literal;
 
 
 public class Image2Map implements ModInitializer {
@@ -127,15 +122,15 @@ public class Image2Map implements ModInitializer {
         ServerLifecycleEvents.SERVER_STARTED.register((s) -> CardboardWarning.checkAndAnnounce());
     }
 
-    private int openPreview(CommandContext<ServerCommandSource> context) throws CommandSyntaxException {
-        ServerCommandSource source = context.getSource();
+    private int openPreview(CommandContext<CommandSourceStack> context) throws CommandSyntaxException {
+        CommandSourceStack source = context.getSource();
         String input = StringArgumentType.getString(context, "path");
 
-        source.sendFeedback(() -> Text.literal("Getting image..."), false);
+        source.sendSuccess(() -> Component.literal("Getting image..."), false);
 
         getImage(input).orTimeout(20, TimeUnit.SECONDS).handleAsync((image, ex) -> {
             if (ex instanceof TimeoutException) {
-                source.sendFeedback(() -> Text.literal("Downloading or reading of the image took too long!"), false);
+                source.sendSuccess(() -> Component.literal("Downloading or reading of the image took too long!"), false);
                 return null;
             } else if (ex != null) {
                 if (ex instanceof RuntimeException ru && ru.getCause() != null) {
@@ -143,13 +138,13 @@ public class Image2Map implements ModInitializer {
                 }
 
                 Throwable finalEx = ex;
-                source.sendFeedback(() -> Text.literal("The image isn't valid (hover for more info)!")
-                        .setStyle(Style.EMPTY.withColor(Formatting.RED).withHoverEvent(new HoverEvent.ShowText(Text.literal(finalEx.getMessage())))), false);
+                source.sendSuccess(() -> Component.literal("The image isn't valid (hover for more info)!")
+                        .setStyle(Style.EMPTY.withColor(ChatFormatting.RED).withHoverEvent(new HoverEvent.ShowText(Component.literal(finalEx.getMessage())))), false);
                 return null;
             }
 
             if (image == null) {
-                source.sendFeedback(() -> Text.literal("That doesn't seem to be a valid image (unknown reason)!"), false);
+                source.sendSuccess(() -> Component.literal("That doesn't seem to be a valid image (unknown reason)!"), false);
                 return null;
             }
 
@@ -164,10 +159,10 @@ public class Image2Map implements ModInitializer {
         return 1;
     }
 
-    class DitherModeSuggestionProvider implements SuggestionProvider<ServerCommandSource> {
+    class DitherModeSuggestionProvider implements SuggestionProvider<CommandSourceStack> {
 
         @Override
-        public CompletableFuture<Suggestions> getSuggestions(CommandContext<ServerCommandSource> context,
+        public CompletableFuture<Suggestions> getSuggestions(CommandContext<CommandSourceStack> context,
                                                              SuggestionsBuilder builder) throws CommandSyntaxException {
             builder.suggest("none");
             builder.suggest("dither");
@@ -261,10 +256,10 @@ public class Image2Map implements ModInitializer {
         return List.of();
     }
 
-    private int createMap(CommandContext<ServerCommandSource> context) throws CommandSyntaxException {
-        ServerCommandSource source = context.getSource();
+    private int createMap(CommandContext<CommandSourceStack> context) throws CommandSyntaxException {
+        CommandSourceStack source = context.getSource();
 
-        PlayerEntity player = source.getPlayer();
+        Player player = source.getPlayer();
         DitherMode mode;
         String modeStr = StringArgumentType.getString(context, "mode");
         try {
@@ -275,11 +270,11 @@ public class Image2Map implements ModInitializer {
 
         String input = StringArgumentType.getString(context, "path");
 
-        source.sendFeedback(() -> Text.literal("Getting image..."), false);
+        source.sendSuccess(() -> Component.literal("Getting image..."), false);
 
         getImage(input).orTimeout(20, TimeUnit.SECONDS).handleAsync((image, ex) -> {
             if (ex instanceof TimeoutException) {
-                source.sendFeedback(() -> Text.literal("Downloading or reading of the image took too long!"), false);
+                source.sendSuccess(() -> Component.literal("Downloading or reading of the image took too long!"), false);
                 return null;
             } else if (ex != null) {
                 if (ex instanceof RuntimeException ru && ru.getCause() != null) {
@@ -287,13 +282,13 @@ public class Image2Map implements ModInitializer {
                 }
 
                 Throwable finalEx = ex;
-                source.sendFeedback(() -> Text.literal("The image isn't valid (hover for more info)!")
-                        .setStyle(Style.EMPTY.withColor(Formatting.RED).withHoverEvent(new HoverEvent.ShowText(Text.literal(finalEx.getMessage())))), false);
+                source.sendSuccess(() -> Component.literal("The image isn't valid (hover for more info)!")
+                        .setStyle(Style.EMPTY.withColor(ChatFormatting.RED).withHoverEvent(new HoverEvent.ShowText(Component.literal(finalEx.getMessage())))), false);
                 return null;
             }
 
             if (image == null) {
-                source.sendFeedback(() -> Text.literal("That doesn't seem to be a valid image (unknown reason)!"), false);
+                source.sendSuccess(() -> Component.literal("That doesn't seem to be a valid image (unknown reason)!"), false);
                 return null;
             }
 
@@ -310,12 +305,12 @@ public class Image2Map implements ModInitializer {
 
             int finalHeight = height;
             int finalWidth = width;
-            source.sendFeedback(() -> Text.literal("Converting into maps..."), false);
+            source.sendSuccess(() -> Component.literal("Converting into maps..."), false);
 
             CompletableFuture.supplyAsync(() -> MapRenderer.render(image, mode, finalWidth, finalHeight)).thenAcceptAsync(mapImage -> {
-                var items = MapRenderer.toVanillaItems(mapImage, source.getWorld(), input);
+                var items = MapRenderer.toVanillaItems(mapImage, source.getLevel(), input);
                 giveToPlayer(player, items, input, finalWidth, finalHeight);
-                source.sendFeedback(() -> Text.literal("Done!"), false);
+                source.sendSuccess(() -> Component.literal("Done!"), false);
             }, source.getServer());
             return null;
         }, source.getServer());
@@ -323,10 +318,10 @@ public class Image2Map implements ModInitializer {
         return 1;
     }
 
-    private int createMapFromFolder(CommandContext<ServerCommandSource> context) throws CommandSyntaxException {
-        ServerCommandSource source = context.getSource();
+    private int createMapFromFolder(CommandContext<CommandSourceStack> context) throws CommandSyntaxException {
+        CommandSourceStack source = context.getSource();
 
-        PlayerEntity player = source.getPlayer();
+        Player player = source.getPlayer();
         DitherMode mode;
         String modeStr = StringArgumentType.getString(context, "mode");
         try {
@@ -337,7 +332,7 @@ public class Image2Map implements ModInitializer {
 
         String input = StringArgumentType.getString(context, "path");
 
-        source.sendFeedback(() -> Text.literal("Getting image..."), false);
+        source.sendSuccess(() -> Component.literal("Getting image..."), false);
 
         var list = new ArrayList<ItemStack>();
 
@@ -355,21 +350,21 @@ public class Image2Map implements ModInitializer {
 
             int finalHeight = height;
             int finalWidth = width;
-            source.sendFeedback(() -> Text.literal("Converting into maps..."), false);
+            source.sendSuccess(() -> Component.literal("Converting into maps..."), false);
 
             var mapImage = MapRenderer.render(image, mode, finalWidth, finalHeight);
-            var items = MapRenderer.toVanillaItems(mapImage, source.getWorld(), input);
+            var items = MapRenderer.toVanillaItems(mapImage, source.getLevel(), input);
             list.add(toSingleStack(items, input, width, height));
         }
         var bundle = new ItemStack(Items.BUNDLE);
-        bundle.set(DataComponentTypes.BUNDLE_CONTENTS, new BundleContentsComponent(list));
-        player.giveItemStack(bundle);
+        bundle.set(DataComponents.BUNDLE_CONTENTS, new BundleContents(list));
+        player.addItem(bundle);
 
         return 1;
     }
 
-    public static void giveToPlayer(PlayerEntity player, List<ItemStack> items, String input, int width, int height) {
-        player.giveItemStack(toSingleStack(items, input, width, height));
+    public static void giveToPlayer(Player player, List<ItemStack> items, String input, int width, int height) {
+        player.addItem(toSingleStack(items, input, width, height));
     }
 
     public static ItemStack toSingleStack(List<ItemStack> items, String input, int width, int height) {
@@ -377,83 +372,83 @@ public class Image2Map implements ModInitializer {
             return items.get(0);
         } else {
             var bundle = new ItemStack(Items.BUNDLE);
-            bundle.set(DataComponentTypes.BUNDLE_CONTENTS, new BundleContentsComponent(items));
-            bundle.set(DataComponentTypes.CUSTOM_DATA, NbtComponent.of(ImageData.CODEC.codec().encodeStart(NbtOps.INSTANCE,
-                    ImageData.ofBundle(MathHelper.ceil(width / 128d), MathHelper.ceil(height / 128d))).result().orElseThrow().asCompound().orElseThrow()));
+            bundle.set(DataComponents.BUNDLE_CONTENTS, new BundleContents(items));
+            bundle.set(DataComponents.CUSTOM_DATA, CustomData.of(ImageData.CODEC.codec().encodeStart(NbtOps.INSTANCE,
+                    ImageData.ofBundle(Mth.ceil(width / 128d), Mth.ceil(height / 128d))).result().orElseThrow().asCompound().orElseThrow()));
 
-            bundle.set(DataComponentTypes.LORE, new LoreComponent(List.of(Text.literal(input))));
-            bundle.set(DataComponentTypes.ITEM_NAME, Text.literal("Maps").formatted(Formatting.GOLD));
+            bundle.set(DataComponents.LORE, new ItemLore(List.of(Component.literal(input))));
+            bundle.set(DataComponents.ITEM_NAME, Component.literal("Maps").withStyle(ChatFormatting.GOLD));
 
             return bundle;
         }
     }
 
-    public static boolean clickItemFrame(PlayerEntity player, Hand hand, ItemFrameEntity itemFrameEntity) {
-        var stack = player.getStackInHand(hand);
-        var bundleData = stack.getOrDefault(DataComponentTypes.CUSTOM_DATA, NbtComponent.DEFAULT).copyNbt().decode(ImageData.CODEC);
+    public static boolean clickItemFrame(Player player, InteractionHand hand, ItemFrame itemFrameEntity) {
+        var stack = player.getItemInHand(hand);
+        var bundleData = stack.getOrDefault(DataComponents.CUSTOM_DATA, CustomData.EMPTY).copyTag().read(ImageData.CODEC);
 
-        if (stack.isOf(Items.BUNDLE) && bundleData.isPresent() && bundleData.orElseThrow().quickPlace()) {
-            var world = itemFrameEntity.getEntityWorld();
-            var start = itemFrameEntity.getBlockPos();
+        if (stack.is(Items.BUNDLE) && bundleData.isPresent() && bundleData.orElseThrow().quickPlace()) {
+            var world = itemFrameEntity.level();
+            var start = itemFrameEntity.blockPosition();
             var width = bundleData.orElseThrow().width();
             var height = bundleData.orElseThrow().height();
 
-            var frames = new ItemFrameEntity[width * height];
+            var frames = new ItemFrame[width * height];
 
-            var facing = itemFrameEntity.getHorizontalFacing();
+            var facing = itemFrameEntity.getDirection();
             Direction right;
             Direction down;
 
             int rot;
 
             if (facing.getAxis() != Direction.Axis.Y) {
-                right = facing.rotateYCounterclockwise();
+                right = facing.getCounterClockWise();
                 down = Direction.DOWN;
                 rot = 0;
             } else {
-                right = player.getHorizontalFacing().rotateYClockwise();
-                if (facing.getDirection() == Direction.AxisDirection.POSITIVE) {
-                    down = right.rotateYClockwise();
-                    rot = player.getHorizontalFacing().getOpposite().getHorizontalQuarterTurns();
+                right = player.getDirection().getClockWise();
+                if (facing.getAxisDirection() == Direction.AxisDirection.POSITIVE) {
+                    down = right.getClockWise();
+                    rot = player.getDirection().getOpposite().get2DDataValue();
                 } else {
-                    down = right.rotateYCounterclockwise();
-                    rot = (right.getAxis() == Direction.Axis.Z ? player.getHorizontalFacing() : player.getHorizontalFacing().getOpposite()).getHorizontalQuarterTurns();
+                    down = right.getCounterClockWise();
+                    rot = (right.getAxis() == Direction.Axis.Z ? player.getDirection() : player.getDirection().getOpposite()).get2DDataValue();
                 }
             }
 
-            var mut = start.mutableCopy();
+            var mut = start.mutable();
 
             for (var x = 0; x < width; x++) {
                 for (var y = 0; y < height; y++) {
                     mut.set(start);
                     mut.move(right, x);
                     mut.move(down, y);
-                    var entities = world.getEntitiesByClass(ItemFrameEntity.class, Box.from(Vec3d.of(mut)), (entity1) -> entity1.getHorizontalFacing() == facing && entity1.getBlockPos().equals(mut));
+                    var entities = world.getEntitiesOfClass(ItemFrame.class, AABB.unitCubeFromLowerCorner(Vec3.atLowerCornerOf(mut)), (entity1) -> entity1.getDirection() == facing && entity1.blockPosition().equals(mut));
                     if (!entities.isEmpty()) {
                         frames[x + y * width] = entities.get(0);
                     }
                 }
             }
 
-            for (var map : stack.getOrDefault(DataComponentTypes.BUNDLE_CONTENTS, BundleContentsComponent.DEFAULT).iterate()) {
-                var mapData = map.getOrDefault(DataComponentTypes.CUSTOM_DATA, NbtComponent.DEFAULT).copyNbt().decode(ImageData.CODEC);
+            for (var map : stack.getOrDefault(DataComponents.BUNDLE_CONTENTS, BundleContents.EMPTY).items()) {
+                var mapData = map.getOrDefault(DataComponents.CUSTOM_DATA, CustomData.EMPTY).copyTag().read(ImageData.CODEC);
 
                 if (mapData.isPresent() && mapData.orElseThrow().isReal()) {
                     map = map.copy();
                     var newData = mapData.orElseThrow().withDirection(right, down, facing);
-                    map.set(DataComponentTypes.CUSTOM_DATA, NbtComponent.of(ImageData.CODEC.codec().encodeStart(NbtOps.INSTANCE, newData).result().orElseThrow().asCompound().orElseThrow()));
+                    map.set(DataComponents.CUSTOM_DATA, CustomData.of(ImageData.CODEC.codec().encodeStart(NbtOps.INSTANCE, newData).result().orElseThrow().asCompound().orElseThrow()));
 
                     var frame = frames[mapData.orElseThrow().x() + mapData.orElseThrow().y() * width];
 
-                    if (frame != null && frame.getHeldItemStack().isEmpty()) {
-                        frame.setHeldItemStack(map);
+                    if (frame != null && frame.getItem().isEmpty()) {
+                        frame.setItem(map);
                         frame.setRotation(rot);
                         frame.setInvisible(true);
                     }
                 }
             }
 
-            stack.decrement(1);
+            stack.shrink(1);
 
             return true;
         }
@@ -461,9 +456,9 @@ public class Image2Map implements ModInitializer {
         return false;
     }
 
-    public static boolean destroyItemFrame(Entity player, ItemFrameEntity itemFrameEntity) {
-        var stack = itemFrameEntity.getHeldItemStack();
-        var tag = stack.getOrDefault(DataComponentTypes.CUSTOM_DATA, NbtComponent.DEFAULT).copyNbt().decode(ImageData.CODEC);
+    public static boolean destroyItemFrame(Entity player, ItemFrame itemFrameEntity) {
+        var stack = itemFrameEntity.getItem();
+        var tag = stack.getOrDefault(DataComponents.CUSTOM_DATA, CustomData.EMPTY).copyTag().read(ImageData.CODEC);
 
 
         if (stack.getItem() == Items.FILLED_MAP && tag.isPresent() && tag.orElseThrow().right().isPresent()
@@ -477,33 +472,33 @@ public class Image2Map implements ModInitializer {
             Direction down = tag.orElseThrow().down().get();
             Direction facing = tag.orElseThrow().facing().get();
 
-            var world = itemFrameEntity.getEntityWorld();
-            var start = itemFrameEntity.getBlockPos();
+            var world = itemFrameEntity.level();
+            var start = itemFrameEntity.blockPosition();
 
-            var mut = start.mutableCopy();
+            var mut = start.mutable();
 
             mut.move(right, -xo);
             mut.move(down, -yo);
 
-            start = mut.toImmutable();
+            start = mut.immutable();
 
             for (var x = 0; x < width; x++) {
                 for (var y = 0; y < height; y++) {
                     mut.set(start);
                     mut.move(right, x);
                     mut.move(down, y);
-                    var entities = world.getEntitiesByClass(ItemFrameEntity.class, Box.from(Vec3d.of(mut)),
-                            (entity1) -> entity1.getHorizontalFacing() == facing && entity1.getBlockPos().equals(mut));
+                    var entities = world.getEntitiesOfClass(ItemFrame.class, AABB.unitCubeFromLowerCorner(Vec3.atLowerCornerOf(mut)),
+                            (entity1) -> entity1.getDirection() == facing && entity1.blockPosition().equals(mut));
                     if (!entities.isEmpty()) {
                         var frame = entities.get(0);
 
                         // Only apply to frames that contain an image2map map
-                        var frameStack = frame.getHeldItemStack();
-                        tag = frameStack.getOrDefault(DataComponentTypes.CUSTOM_DATA, NbtComponent.DEFAULT).copyNbt().decode(ImageData.CODEC);
+                        var frameStack = frame.getItem();
+                        tag = frameStack.getOrDefault(DataComponents.CUSTOM_DATA, CustomData.EMPTY).copyTag().read(ImageData.CODEC);
 
                         if (frameStack.getItem() == Items.FILLED_MAP && tag.isPresent() && tag.orElseThrow().right().isPresent()
                                 && tag.orElseThrow().down().isPresent() && tag.orElseThrow().facing().isPresent()) {
-                            frame.setHeldItemStack(ItemStack.EMPTY, true);
+                            frame.setItem(ItemStack.EMPTY, true);
                             frame.setInvisible(false);
                         }
                     }

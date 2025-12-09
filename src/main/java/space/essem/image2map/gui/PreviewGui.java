@@ -14,19 +14,18 @@ import eu.pb4.mapcanvas.api.core.CanvasColor;
 import eu.pb4.mapcanvas.api.core.CanvasImage;
 import eu.pb4.mapcanvas.api.font.DefaultFonts;
 import eu.pb4.mapcanvas.api.utils.CanvasUtils;
-import net.minecraft.command.suggestion.SuggestionProviders;
-import net.minecraft.network.packet.s2c.play.CommandTreeS2CPacket;
-import net.minecraft.server.command.ServerCommandSource;
-import net.minecraft.server.network.ServerPlayerEntity;
-import net.minecraft.text.Text;
-import net.minecraft.util.Identifier;
-import net.minecraft.util.math.MathHelper;
 import org.jetbrains.annotations.Nullable;
 import space.essem.image2map.Image2Map;
 import space.essem.image2map.renderer.MapRenderer;
 
 import java.awt.image.BufferedImage;
 import java.util.concurrent.CompletableFuture;
+import net.minecraft.commands.synchronization.SuggestionProviders;
+import net.minecraft.network.chat.Component;
+import net.minecraft.network.protocol.game.ClientboundCommandsPacket;
+import net.minecraft.resources.Identifier;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.util.Mth;
 
 public class PreviewGui extends MapGui {
     private static final CommandDispatcher<PreviewGui> COMMANDS = new CommandDispatcher<>();
@@ -43,20 +42,20 @@ public class PreviewGui extends MapGui {
     private boolean grid = true;
     private CompletableFuture<CanvasImage> imageProcessing;
 
-    public PreviewGui(ServerPlayerEntity player, BufferedImage image, String source, Image2Map.DitherMode ditherMode, int width, int height) {
-        super(player, MathHelper.ceil(width / 128d) + 2, MathHelper.ceil(height / 128d) + 2);
+    public PreviewGui(ServerPlayer player, BufferedImage image, String source, Image2Map.DitherMode ditherMode, int width, int height) {
+        super(player, Mth.ceil(width / 128d) + 2, Mth.ceil(height / 128d) + 2);
         this.width = width;
         this.height = height;
         this.ditherMode = ditherMode;
         this.source = source;
         this.sourceImage = image;
 
-        player.networkHandler.sendPacket(new CommandTreeS2CPacket(COMMANDS.getRoot(), new CommandTreeS2CPacket.CommandNodeInspector<>() {
+        player.connection.send(new ClientboundCommandsPacket(COMMANDS.getRoot(), new ClientboundCommandsPacket.NodeInspector<>() {
             @Nullable
             @Override
-            public Identifier getSuggestionProviderId(ArgumentCommandNode<PreviewGui, ?> node) {
+            public Identifier suggestionId(ArgumentCommandNode<PreviewGui, ?> node) {
                 var suggestionProvider = node.getCustomSuggestions();
-                return suggestionProvider != null ? SuggestionProviders.computeId(suggestionProvider) : null;
+                return suggestionProvider != null ? SuggestionProviders.getName(suggestionProvider) : null;
             }
 
             @Override
@@ -65,7 +64,7 @@ public class PreviewGui extends MapGui {
             }
 
             @Override
-            public boolean hasRequiredLevel(CommandNode<PreviewGui> node) {
+            public boolean isRestricted(CommandNode<PreviewGui> node) {
                 return false;
             }
         }));
@@ -165,7 +164,7 @@ public class PreviewGui extends MapGui {
                 this.canvas.getWidth() < width + 256 || this.canvas.getHeight() < height + 256
                         || this.canvas.getWidth() > width * 2 || this.canvas.getHeight() > height * 2
         ) {
-            this.resizeCanvas(MathHelper.ceil(width / 128d) + 2, MathHelper.ceil(height / 128d) + 2);
+            this.resizeCanvas(Mth.ceil(width / 128d) + 2, Mth.ceil(height / 128d) + 2);
         }
 
         this.width = width;
@@ -210,12 +209,12 @@ public class PreviewGui extends MapGui {
             if (x.getSource().imageProcessing == null) {
                 x.getSource().drawLoading();
                 Image2Map.giveToPlayer(x.getSource().player,
-                        MapRenderer.toVanillaItems(x.getSource().image, x.getSource().player.getEntityWorld(), x.getSource().source),
+                        MapRenderer.toVanillaItems(x.getSource().image, x.getSource().player.level(), x.getSource().source),
                         x.getSource().source, x.getSource().width, x.getSource().height);
 
                 x.getSource().close();
             } else {
-                x.getSource().player.sendMessage(Text.literal("Image is still processed!"));
+                x.getSource().player.sendSystemMessage(Component.literal("Image is still processed!"));
             }
             return 0;
         }));
@@ -232,8 +231,8 @@ public class PreviewGui extends MapGui {
                             return 0;
                         })))
                 .executes(x -> {
-                    x.getSource().player.sendMessage(Text.literal("Source: " + x.getSource().sourceImage.getWidth() + " x " + x.getSource().sourceImage.getHeight()));
-                    x.getSource().player.sendMessage(Text.literal("MapImage: " + x.getSource().width + " x " + x.getSource().height));
+                    x.getSource().player.sendSystemMessage(Component.literal("Source: " + x.getSource().sourceImage.getWidth() + " x " + x.getSource().sourceImage.getHeight()));
+                    x.getSource().player.sendSystemMessage(Component.literal("MapImage: " + x.getSource().width + " x " + x.getSource().height));
                     return 0;
                 })
         );

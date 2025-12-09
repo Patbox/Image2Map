@@ -1,2 +1,2 @@
 accessWidener   v1  named
-accessible field net/minecraft/block/MapColor COLORS [Lnet/minecraft/block/MapColor;
+accessible	field	net/minecraft/world/level/material/MapColor	MATERIAL_COLORS	[Lnet/minecraft/world/level/material/MapColor;
