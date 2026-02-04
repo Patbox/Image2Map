@@ -16,6 +16,8 @@ public class Image2MapConfig {
 
   public boolean allowLocalFiles = false;
 
+  public boolean allowBundles = true;
+
   public int minPermLevel = 2;
 
 

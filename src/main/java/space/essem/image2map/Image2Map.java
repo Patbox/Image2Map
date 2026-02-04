@@ -261,17 +261,40 @@ public class Image2Map implements ModInitializer {
 
         Player player = source.getPlayer();
         DitherMode mode;
+        String input;
+        Integer forcedWidth = null;
+        Integer forcedHeight = null;
         String modeStr = StringArgumentType.getString(context, "mode");
         try {
             mode = DitherMode.fromString(modeStr);
+            input = StringArgumentType.getString(context, "path");
         } catch (IllegalArgumentException e) {
-            throw new SimpleCommandExceptionType(() -> "Invalid dither mode '" + modeStr + "'").create();
+            var parsed = tryParsePathFirst(modeStr, StringArgumentType.getString(context, "path"));
+            if (parsed == null) {
+                throw new SimpleCommandExceptionType(() -> "Invalid dither mode '" + modeStr + "'").create();
+            }
+
+            mode = parsed.mode();
+            input = parsed.path();
+            forcedWidth = parsed.pixelWidth();
+            forcedHeight = parsed.pixelHeight();
         }
 
-        String input = StringArgumentType.getString(context, "path");
+        if (forcedWidth == null || forcedHeight == null) {
+            var parsed = tryParseDimensionsFromPath(input);
+            if (parsed != null) {
+                input = parsed.path();
+                forcedWidth = parsed.pixelWidth();
+                forcedHeight = parsed.pixelHeight();
+            }
+        }
 
         source.sendSuccess(() -> Component.literal("Getting image..."), false);
 
+        Integer finalForcedWidth = forcedWidth;
+        Integer finalForcedHeight = forcedHeight;
+        String finalInput = input;
+        DitherMode finalMode = mode;
         getImage(input).orTimeout(20, TimeUnit.SECONDS).handleAsync((image, ex) -> {
             if (ex instanceof TimeoutException) {
                 source.sendSuccess(() -> Component.literal("Downloading or reading of the image took too long!"), false);
@@ -292,24 +315,27 @@ public class Image2Map implements ModInitializer {
                 return null;
             }
 
-            int width;
-            int height;
+            int width = image.getWidth();
+            int height = image.getHeight();
 
-            try {
-                width = IntegerArgumentType.getInteger(context, "width");
-                height = IntegerArgumentType.getInteger(context, "height");
-            } catch (Throwable e) {
-                width = image.getWidth();
-                height = image.getHeight();
+            if (finalForcedWidth != null && finalForcedHeight != null) {
+                width = finalForcedWidth;
+                height = finalForcedHeight;
+            } else {
+                try {
+                    width = IntegerArgumentType.getInteger(context, "width");
+                    height = IntegerArgumentType.getInteger(context, "height");
+                } catch (Throwable ignored) {
+                }
             }
 
             int finalHeight = height;
             int finalWidth = width;
             source.sendSuccess(() -> Component.literal("Converting into maps..."), false);
 
-            CompletableFuture.supplyAsync(() -> MapRenderer.render(image, mode, finalWidth, finalHeight)).thenAcceptAsync(mapImage -> {
-                var items = MapRenderer.toVanillaItems(mapImage, source.getLevel(), input);
-                giveToPlayer(player, items, input, finalWidth, finalHeight);
+            CompletableFuture.supplyAsync(() -> MapRenderer.render(image, finalMode, finalWidth, finalHeight)).thenAcceptAsync(mapImage -> {
+                var items = MapRenderer.toVanillaItems(mapImage, source.getLevel(), finalInput);
+                giveToPlayer(player, items, finalInput, finalWidth, finalHeight);
                 source.sendSuccess(() -> Component.literal("Done!"), false);
             }, source.getServer());
             return null;
@@ -354,23 +380,36 @@ public class Image2Map implements ModInitializer {
 
             var mapImage = MapRenderer.render(image, mode, finalWidth, finalHeight);
             var items = MapRenderer.toVanillaItems(mapImage, source.getLevel(), input);
-            list.add(toSingleStack(items, input, width, height));
+            if (CONFIG.allowBundles) {
+                list.add(toSingleStack(items, input, width, height));
+            } else {
+                giveToPlayer(player, items, input, width, height);
+            }
         }
-        var bundle = new ItemStack(Items.BUNDLE);
-        bundle.set(DataComponents.BUNDLE_CONTENTS, new BundleContents(list));
-        player.addItem(bundle);
+        if (CONFIG.allowBundles) {
+            var bundle = new ItemStack(Items.BUNDLE);
+            bundle.set(DataComponents.BUNDLE_CONTENTS, new BundleContents(list));
+            player.addItem(bundle);
+        }
 
         return 1;
     }
 
     public static void giveToPlayer(Player player, List<ItemStack> items, String input, int width, int height) {
-        player.addItem(toSingleStack(items, input, width, height));
+        if (CONFIG.allowBundles) {
+            player.addItem(toSingleStack(items, input, width, height));
+            return;
+        }
+
+        for (var item : items) {
+            player.addItem(item);
+        }
     }
 
     public static ItemStack toSingleStack(List<ItemStack> items, String input, int width, int height) {
         if (items.size() == 1) {
             return items.get(0);
-        } else {
+        } else if (CONFIG.allowBundles) {
             var bundle = new ItemStack(Items.BUNDLE);
             bundle.set(DataComponents.BUNDLE_CONTENTS, new BundleContents(items));
             bundle.set(DataComponents.CUSTOM_DATA, CustomData.of(ImageData.CODEC.codec().encodeStart(NbtOps.INSTANCE,
@@ -380,6 +419,8 @@ public class Image2Map implements ModInitializer {
             bundle.set(DataComponents.ITEM_NAME, Component.literal("Maps").withStyle(ChatFormatting.GOLD));
 
             return bundle;
+        } else {
+            return items.get(0);
         }
     }
 
@@ -519,4 +560,125 @@ public class Image2Map implements ModInitializer {
             return false;
         }
     }
+
+    private PathFirstCommand tryParsePathFirst(String pathCandidate, String trailing) {
+        var tokens = splitArguments(trailing);
+
+        if (tokens.size() < 2) {
+            return null;
+        }
+
+        int mapsHeight;
+        int mapsWidth;
+        try {
+            mapsHeight = Integer.parseInt(tokens.get(0));
+            mapsWidth = Integer.parseInt(tokens.get(1));
+        } catch (NumberFormatException ex) {
+            return null;
+        }
+
+        DitherMode inferredMode = DitherMode.NONE;
+
+        if (tokens.size() >= 3) {
+            try {
+                inferredMode = DitherMode.fromString(tokens.get(2));
+            } catch (IllegalArgumentException ex) {
+                return null;
+            }
+        }
+
+        if (tokens.size() > 3) {
+            return null;
+        }
+
+        int pixelWidth = mapsWidth * 128;
+        int pixelHeight = mapsHeight * 128;
+
+        return new PathFirstCommand(pathCandidate, pixelWidth, pixelHeight, inferredMode);
+    }
+
+    private @Nullable PathWithDimensions tryParseDimensionsFromPath(String rawPath) {
+        var tokens = splitArguments(rawPath);
+
+        if (tokens.size() < 3) {
+            return null;
+        }
+
+        var widthToken = tokens.get(tokens.size() - 1);
+        var heightToken = tokens.get(tokens.size() - 2);
+
+        int heightMaps;
+        int widthMaps;
+
+        try {
+            heightMaps = Integer.parseInt(heightToken);
+            widthMaps = Integer.parseInt(widthToken);
+        } catch (NumberFormatException ex) {
+            return null;
+        }
+
+        if (heightMaps <= 0 || widthMaps <= 0) {
+            return null;
+        }
+
+        var pathTokens = tokens.subList(0, tokens.size() - 2);
+
+        if (pathTokens.isEmpty()) {
+            return null;
+        }
+
+        var path = String.join(" ", pathTokens);
+
+        return new PathWithDimensions(path, widthMaps * 128, heightMaps * 128);
+    }
+
+    private List<String> splitArguments(String input) {
+        var parts = new ArrayList<String>();
+        if (input == null || input.isBlank()) {
+            return parts;
+        }
+
+        var current = new StringBuilder();
+        boolean inQuotes = false;
+        char quoteChar = '\0';
+
+        for (int i = 0; i < input.length(); i++) {
+            char c = input.charAt(i);
+
+            if (inQuotes) {
+                if (c == quoteChar) {
+                    inQuotes = false;
+                } else {
+                    current.append(c);
+                }
+                continue;
+            }
+
+            if (Character.isWhitespace(c)) {
+                if (current.length() > 0) {
+                    parts.add(current.toString());
+                    current.setLength(0);
+                }
+            } else if (c == '"' || c == '\'') {
+                inQuotes = true;
+                quoteChar = c;
+            } else {
+                current.append(c);
+            }
+        }
+
+        if (inQuotes) {
+            return List.of();
+        }
+
+        if (current.length() > 0) {
+            parts.add(current.toString());
+        }
+
+        return parts;
+    }
+
+    private record PathFirstCommand(String path, int pixelWidth, int pixelHeight, DitherMode mode) {}
+
+    private record PathWithDimensions(String path, int pixelWidth, int pixelHeight) {}
 }
