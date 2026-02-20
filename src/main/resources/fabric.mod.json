@@ -23,7 +23,8 @@
       "space.essem.image2map.Image2Map"
     ],
     "preLaunch": [
-      "space.essem.image2map.CardboardWarning"
+      "space.essem.image2map.CardboardWarning",
+      "space.essem.image2map.ImageIoBootstrap"
     ]
   },
   "accessWidener": "image2map.accesswidener",

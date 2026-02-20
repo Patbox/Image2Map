@@ -5,9 +5,9 @@
   "mixins": [
     "BundleItemMixin",
     "EntityPassengersSetS2CPacketAccessor",
-    "ItemFrameEntityMixin",
-    "PlayerEntityMixin",
-    "ServerPlayNetworkHandlerMixin"
+    "ItemFrameMixin",
+    "PlayerMixin",
+    "ServerGamePacketListenerImplMixin"
   ],
   "server": [],
   "injectors": {
