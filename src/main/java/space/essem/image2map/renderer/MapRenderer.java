@@ -31,21 +31,10 @@ public class MapRenderer {
     public static CanvasImage render(BufferedImage image, DitherMode mode, int width, int height) {
         Image resizedImage = image.getScaledInstance(width, height, Image.SCALE_DEFAULT);
         BufferedImage resized = convertToBufferedImage(resizedImage);
-        int[][] pixels = convertPixelArray(resized);
-
-        var state = new CanvasImage(width, height);
-
-        for (int i = 0; i < width; i++) {
-            for (int j = 0; j < height; j++) {
-                if (mode.equals(DitherMode.FLOYD)) {
-                    state.set(i, j, floydDither(pixels, i, j, pixels[j][i]));
-                } else {
-                    state.set(i, j, CanvasUtils.findClosestColorARGB(pixels[j][i]));
-                }
-            }
-        }
-
-        return state;
+        return switch (mode) {
+            case NONE -> CanvasImage.from(resized);
+            case FLOYD -> CanvasImage.fromWithFloydSteinbergDither(resized);
+        };
     }
 
     public static List<ItemStack> toVanillaItems(CanvasImage image, ServerLevel world, String url) {
@@ -88,111 +77,6 @@ public class MapRenderer {
         }
 
         return items;
-    }
-
-    /*public static ItemStack render(BufferedImage image, DitherMode mode, ServerWorld world, int width, int height,
-                                   PlayerEntity player) {
-        // mojang removed the ability to set a map as locked via the "locked" field in
-        // 1.17, so we create and apply our own MapState instead
-        ItemStack stack = new ItemStack(Items.FILLED_MAP);
-        int id = world.getNextMapId();
-        NbtCompound nbt = new NbtCompound();
-
-        nbt.putString("dimension", world.getRegistryKey().getValue().toString());
-        nbt.putInt("xCenter", (int) 0);
-        nbt.putInt("zCenter", (int) 0);
-        nbt.putBoolean("locked", true);
-        nbt.putBoolean("unlimitedTracking", false);
-        nbt.putBoolean("trackingPosition", false);
-        nbt.putByte("scale", (byte) 3);
-        MapState state = MapState.fromNbt(nbt);
-        world.putMapState(FilledMapItem.getMapName(id), state);
-        stack.getOrCreateNbt().putInt("map", id);
-
-        Image resizedImage = image.getScaledInstance(128, 128, Image.SCALE_DEFAULT);
-        BufferedImage resized = convertToBufferedImage(resizedImage);
-        int width = resized.getWidth();
-        int height = resized.getHeight();
-        int[][] pixels = convertPixelArray(resized);
-        MapColor[] mapColors = MapColor.COLORS;
-        Color imageColor;
-        mapColors = Arrays.stream(mapColors).filter(Objects::nonNull).toArray(MapColor[]::new);
-
-        for (int i = 0; i < width; i++) {
-            for (int j = 0; j < height; j++) {
-                imageColor = new Color(pixels[j][i], true);
-                if (mode.equals(DitherMode.FLOYD))
-                    state.colors[i + j * width] = (byte) floydDither(mapColors, pixels, i, j, imageColor);
-                else
-                    state.colors[i + j * width] = (byte) nearestColor(mapColors, imageColor);
-            }
-        }
-        return stack;
-    }*/
-
-    private static CanvasColor floydDither(int[][] pixels, int x, int y, int imageColor) {
-        var closestColor = CanvasUtils.findClosestColorARGB(imageColor);
-        var palletedColor = closestColor.getRgbColor();
-
-        var errorR = ARGB.red(imageColor) - ARGB.red(palletedColor);
-        var errorG = ARGB.green(imageColor) - ARGB.green(palletedColor);
-        var errorB = ARGB.blue(imageColor) - ARGB.blue(palletedColor);
-        if (pixels[0].length > x + 1) {
-            pixels[y][x + 1] = applyError(pixels[y][x + 1], errorR, errorG, errorB, 7.0 / 16.0);
-        }
-        if (pixels.length > y + 1) {
-            if (x > 0) {
-                pixels[y + 1][x - 1] = applyError(pixels[y + 1][x - 1], errorR, errorG, errorB, 3.0 / 16.0);
-            }
-            pixels[y + 1][x] = applyError(pixels[y + 1][x], errorR, errorG, errorB, 5.0 / 16.0);
-            if (pixels[0].length > x + 1) {
-                pixels[y + 1][x + 1] = applyError(pixels[y + 1][x + 1], errorR, errorG, errorB, 1.0 / 16.0);
-            }
-        }
-
-        return closestColor;
-    }
-
-    private static int applyError(int pixelColor, int errorR, int errorG, int errorB, double quantConst) {
-        int pR = clamp( ARGB.red(pixelColor) + (int) ((double) errorR * quantConst), 0, 255);
-        int pG = clamp(ARGB.green(pixelColor) + (int) ((double) errorG * quantConst), 0, 255);
-        int pB = clamp(ARGB.blue(pixelColor) + (int) ((double) errorB * quantConst), 0, 255);
-        return ARGB.color(ARGB.alpha(pixelColor), pR, pG, pB);
-    }
-
-    private static int clamp(int i, int min, int max) {
-        if (min > max)
-            throw new IllegalArgumentException("max value cannot be less than min value");
-        if (i < min)
-            return min;
-        if (i > max)
-            return max;
-        return i;
-    }
-
-    private static int[][] convertPixelArray(BufferedImage image) {
-
-        final byte[] pixels = ((DataBufferByte) image.getRaster().getDataBuffer()).getData();
-        final int width = image.getWidth();
-        final int height = image.getHeight();
-
-        int[][] result = new int[height][width];
-        final int pixelLength = 4;
-        for (int pixel = 0, row = 0, col = 0; pixel + 3 < pixels.length; pixel += pixelLength) {
-            int argb = 0;
-            argb += (((int) pixels[pixel] & 0xff) << 24); // alpha
-            argb += ((int) pixels[pixel + 1] & 0xff); // blue
-            argb += (((int) pixels[pixel + 2] & 0xff) << 8); // green
-            argb += (((int) pixels[pixel + 3] & 0xff) << 16); // red
-            result[row][col] = argb;
-            col++;
-            if (col == width) {
-                col = 0;
-                row++;
-            }
-        }
-
-        return result;
     }
 
     private static BufferedImage convertToBufferedImage(Image image) {

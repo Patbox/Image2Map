@@ -30,7 +30,17 @@ dependencies {
 	modImplementation include("eu.pb4:map-canvas-api:${project.mapcanvas_version}")
 	modImplementation include("eu.pb4:sgui:${project.sgui_version}")
 	modImplementation include("me.lucko:fabric-permissions-api:0.6.0-patbox")
-	//implementation include("com.twelvemonkeys.imageio:imageio-webp:3.12.0")
+
+	[
+			"imageio:imageio-core",
+			"imageio:imageio-webp",
+			"imageio:imageio-metadata",
+			"common:common-lang",
+			"common:common-io",
+			"common:common-image",
+	].forEach {
+		implementation include("com.twelvemonkeys.${it}:3.12.0")
+	}
 }
 
 loom {

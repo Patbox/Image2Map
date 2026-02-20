@@ -128,7 +128,7 @@ public class Image2Map implements ModInitializer {
 
         source.sendSuccess(() -> Component.literal("Getting image..."), false);
 
-        getImage(input).orTimeout(20, TimeUnit.SECONDS).handleAsync((image, ex) -> {
+        getImage(input).orTimeout(30, TimeUnit.SECONDS).handleAsync((image, ex) -> {
             if (ex instanceof TimeoutException) {
                 source.sendSuccess(() -> Component.literal("Downloading or reading of the image took too long!"), false);
                 return null;
@@ -205,6 +205,7 @@ public class Image2Map implements ModInitializer {
                     return null;
                 }
             } catch (Throwable e) {
+                LOGGER.warn("Failed to load the image!", e);
                 throw new RuntimeException(e);
             }
         });
