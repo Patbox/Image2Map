@@ -80,8 +80,8 @@ public class Image2Map implements ModInitializer {
                     .requires(Permissions.require("image2map.use", CONFIG.minPermLevel))
                     .then(literal("create")
                             .requires(Permissions.require("image2map.create", 0))
-                            .then(argument("width", IntegerArgumentType.integer(1))
-                                    .then(argument("height", IntegerArgumentType.integer(1))
+                            .then(argument("width", IntegerArgumentType.integer(1, CONFIG.maxSize))
+                                    .then(argument("height", IntegerArgumentType.integer(1, CONFIG.maxSize))
                                             .then(argument("mode", StringArgumentType.word()).suggests(new DitherModeSuggestionProvider())
                                                     .then(argument("path", StringArgumentType.greedyString())
                                                             .executes(this::createMap))
@@ -96,8 +96,8 @@ public class Image2Map implements ModInitializer {
                     )
                     .then(literal("create-folder")
                             .requires(Permissions.require("image2map.createfolder", 3).and(x -> CONFIG.allowLocalFiles))
-                            .then(argument("width", IntegerArgumentType.integer(1))
-                                    .then(argument("height", IntegerArgumentType.integer(1))
+                            .then(argument("width", IntegerArgumentType.integer(1, CONFIG.maxSize))
+                                    .then(argument("height", IntegerArgumentType.integer(1, CONFIG.maxSize))
                                             .then(argument("mode", StringArgumentType.word()).suggests(new DitherModeSuggestionProvider())
                                                     .then(argument("path", StringArgumentType.greedyString())
                                                             .executes(this::createMapFromFolder))
@@ -306,6 +306,11 @@ public class Image2Map implements ModInitializer {
 
             int finalHeight = height;
             int finalWidth = width;
+
+            if (finalHeight > CONFIG.maxSize || finalWidth > CONFIG.maxSize) {
+                source.sendSuccess(() -> Component.literal("Map size exceeds maximum allowed (" + CONFIG.maxSize + "x" + CONFIG.maxSize + "), was " + finalWidth + "x" + finalHeight), false);
+                return null;
+            }
             source.sendSuccess(() -> Component.literal("Converting into maps..."), false);
 
             CompletableFuture.supplyAsync(() -> MapRenderer.render(image, mode, finalWidth, finalHeight)).thenAcceptAsync(mapImage -> {
@@ -351,6 +356,10 @@ public class Image2Map implements ModInitializer {
 
             int finalHeight = height;
             int finalWidth = width;
+
+            if (finalHeight > CONFIG.maxSize || finalWidth > CONFIG.maxSize) {
+                throw new SimpleCommandExceptionType(() -> "Map size exceeds maximum allowed (1024x1024), was " + finalWidth + "x" + finalHeight).create();
+            }
             source.sendSuccess(() -> Component.literal("Converting into maps..."), false);
 
             var mapImage = MapRenderer.render(image, mode, finalWidth, finalHeight);

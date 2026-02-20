@@ -17,7 +17,7 @@ public class Image2MapConfig {
   public boolean allowLocalFiles = false;
 
   public int minPermLevel = 2;
-
+  public int maxSize = 1024;
 
   public static Image2MapConfig loadOrCreateConfig() {
     try {

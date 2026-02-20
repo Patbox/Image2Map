@@ -220,13 +220,13 @@ public class PreviewGui extends MapGui {
         }));
 
         COMMANDS.register(literal("size")
-                .then(argument("width", IntegerArgumentType.integer(1))
+                .then(argument("width", IntegerArgumentType.integer(1, Image2Map.CONFIG.maxSize))
                         .executes(x -> {
                             var w = IntegerArgumentType.getInteger(x, "width");
                             x.getSource().setSize(w, x.getSource().sourceImage.getHeight() * w / x.getSource().sourceImage.getWidth());
                             return 0;
                         })
-                        .then(argument("height", IntegerArgumentType.integer(1)).executes(x -> {
+                        .then(argument("height", IntegerArgumentType.integer(1, Image2Map.CONFIG.maxSize)).executes(x -> {
                             x.getSource().setSize(IntegerArgumentType.getInteger(x, "width"), IntegerArgumentType.getInteger(x, "height"));
                             return 0;
                         })))
