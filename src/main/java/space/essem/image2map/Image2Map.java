@@ -151,7 +151,17 @@ public class Image2Map implements ModInitializer {
             if (GuiHelpers.getCurrentGui(source.getPlayer()) instanceof PreviewGui previewGui) {
                 previewGui.close();
             }
-            new PreviewGui(context.getSource().getPlayer(), image, input, DitherMode.NONE, image.getWidth(), image.getHeight());
+
+            var width = image.getWidth();
+            var height = image.getHeight();
+
+            if (height > CONFIG.maxSize || width > CONFIG.maxSize) {
+                var scaleDown = Math.min(CONFIG.maxSize / (double) height, CONFIG.maxSize / (double) width);
+                width = (int) (width * scaleDown);
+                height = (int) (height * scaleDown);
+            }
+
+            new PreviewGui(context.getSource().getPlayer(), image, input, DitherMode.NONE, width, height);
 
             return null;
         }, source.getServer());
@@ -299,18 +309,27 @@ public class Image2Map implements ModInitializer {
             try {
                 width = IntegerArgumentType.getInteger(context, "width");
                 height = IntegerArgumentType.getInteger(context, "height");
+
+                if (height > CONFIG.maxSize || width > CONFIG.maxSize) {
+                    int finalHeight = height;
+                    int finalWidth = width;
+                    source.sendSuccess(() -> Component.literal("Map size exceeds maximum allowed (" + CONFIG.maxSize + "x" + CONFIG.maxSize + "), was " + finalWidth + "x" + finalHeight), false);
+                    return null;
+                }
             } catch (Throwable e) {
                 width = image.getWidth();
                 height = image.getHeight();
+
+                if (height > CONFIG.maxSize || width > CONFIG.maxSize) {
+                    var scaleDown = Math.min(CONFIG.maxSize / (double) height, CONFIG.maxSize / (double) width);
+                    width = (int) (width * scaleDown);
+                    height = (int) (height * scaleDown);
+                }
             }
 
             int finalHeight = height;
             int finalWidth = width;
 
-            if (finalHeight > CONFIG.maxSize || finalWidth > CONFIG.maxSize) {
-                source.sendSuccess(() -> Component.literal("Map size exceeds maximum allowed (" + CONFIG.maxSize + "x" + CONFIG.maxSize + "), was " + finalWidth + "x" + finalHeight), false);
-                return null;
-            }
             source.sendSuccess(() -> Component.literal("Converting into maps..."), false);
 
             CompletableFuture.supplyAsync(() -> MapRenderer.render(image, mode, finalWidth, finalHeight)).thenAcceptAsync(mapImage -> {
