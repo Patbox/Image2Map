@@ -1,13 +1,12 @@
 plugins {
-	id 'fabric-loom' version '1.13.+'
+	id 'net.fabricmc.fabric-loom' version '1.15.+'
 	id 'maven-publish'
 	id "com.modrinth.minotaur" version "2.+"
 }
 
-sourceCompatibility = JavaVersion.VERSION_21
-targetCompatibility = JavaVersion.VERSION_21
-
-archivesBaseName = project.archives_base_name
+base {
+	archivesName = project.archives_base_name
+}
 version = project.mod_version
 group = project.maven_group
 
@@ -21,15 +20,14 @@ repositories{
 dependencies {
 	//to change the versions see the gradle.properties file
 	minecraft "com.mojang:minecraft:${project.minecraft_version}"
-	mappings loom.officialMojangMappings()
-	modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
+	implementation "net.fabricmc:fabric-loader:${project.loader_version}"
 
 	// Fabric API. This is technically optional, but you probably want it anyway.
-	modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
+	implementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
 
-	modImplementation include("eu.pb4:map-canvas-api:${project.mapcanvas_version}")
-	modImplementation include("eu.pb4:sgui:${project.sgui_version}")
-	modImplementation include("me.lucko:fabric-permissions-api:0.6.0-patbox")
+	implementation include("eu.pb4:map-canvas-api:${project.mapcanvas_version}")
+	implementation include("eu.pb4:sgui:${project.sgui_version}")
+	implementation "me.lucko:fabric-permissions-api:0.7.0"
 
 	[
 			"imageio:imageio-core",
@@ -63,7 +61,7 @@ tasks.withType(JavaCompile).configureEach {
 	it.options.encoding = "UTF-8"
 
 	// Minecraft 1.18 (1.18-pre2) upwards uses Java 17.
-	it.options.release = 21
+	it.options.release = 25
 }
 
 java {
@@ -75,7 +73,7 @@ java {
 
 jar {
 	from("LICENSE") {
-		rename { "${it}_${project.archivesBaseName}"}
+		rename { "${it}_${project.archives_base_name}"}
 	}
 }
 
@@ -84,11 +82,11 @@ publishing {
 	publications {
 		mavenJava(MavenPublication) {
 			// add all the jars that should be included when publishing to maven
-			artifact(remapJar) {
-				builtBy remapJar
+			artifact(jar) {
+				builtBy jar
 			}
 			artifact(sourcesJar) {
-				builtBy remapSourcesJar
+				builtBy sourcesJar
 			}
 		}
 	}
@@ -110,9 +108,9 @@ if (System.getenv("MODRINTH")) {
 		versionType = "release"
 		changelog = System.getenv("CHANGELOG")
 		// On fabric, use 'remapJar' instead of 'jar'
-		uploadFile = remapJar
+		uploadFile = jar
 		gameVersions = [((String) project.minecraft_version)]
-		loaders = ["fabric", "quilt"]
+		loaders = ["fabric"]
 	}
 
 	remapJar {

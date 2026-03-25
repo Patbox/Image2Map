@@ -9,8 +9,7 @@ import com.mojang.brigadier.suggestion.SuggestionProvider;
 import com.mojang.brigadier.suggestion.Suggestions;
 import com.mojang.brigadier.suggestion.SuggestionsBuilder;
 import com.mojang.logging.LogUtils;
-import eu.pb4.sgui.api.GuiHelpers;
-import me.lucko.fabric.api.permissions.v0.Permissions;
+import eu.pb4.sgui.api.SguiUtils;
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
@@ -18,17 +17,21 @@ import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.ChatFormatting;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.core.Direction;
+import net.minecraft.core.component.DataComponentPatch;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.nbt.*;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.HoverEvent;
 import net.minecraft.network.chat.Style;
+import net.minecraft.resources.Identifier;
+import net.minecraft.server.permissions.PermissionLevel;
 import net.minecraft.util.Mth;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.decoration.ItemFrame;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.ItemStackTemplate;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.item.component.BundleContents;
 import net.minecraft.world.item.component.CustomData;
@@ -77,9 +80,9 @@ public class Image2Map implements ModInitializer {
     public void onInitialize() {
         CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) -> {
             dispatcher.register(literal("image2map")
-                    .requires(Permissions.require("image2map.use", CONFIG.minPermLevel))
+                    .requires(FabricPermissionBridge.require(id("use"), PermissionLevel.byId(CONFIG.minPermLevel)))
                     .then(literal("create")
-                            .requires(Permissions.require("image2map.create", 0))
+                            .requires(FabricPermissionBridge.require(id("create"), true))
                             .then(argument("width", IntegerArgumentType.integer(1, CONFIG.maxSize))
                                     .then(argument("height", IntegerArgumentType.integer(1, CONFIG.maxSize))
                                             .then(argument("mode", StringArgumentType.word()).suggests(new DitherModeSuggestionProvider())
@@ -95,7 +98,7 @@ public class Image2Map implements ModInitializer {
                             )
                     )
                     .then(literal("create-folder")
-                            .requires(Permissions.require("image2map.createfolder", 3).and(x -> CONFIG.allowLocalFiles))
+                            .requires(FabricPermissionBridge.require(id("createfolder"), PermissionLevel.ADMINS).and(x -> CONFIG.allowLocalFiles))
                             .then(argument("width", IntegerArgumentType.integer(1, CONFIG.maxSize))
                                     .then(argument("height", IntegerArgumentType.integer(1, CONFIG.maxSize))
                                             .then(argument("mode", StringArgumentType.word()).suggests(new DitherModeSuggestionProvider())
@@ -111,7 +114,7 @@ public class Image2Map implements ModInitializer {
                             )
                     )
                     .then(literal("preview")
-                            .requires(Permissions.require("image2map.preview", 0))
+                            .requires(FabricPermissionBridge.require(id("preview"), true))
                             .then(argument("path", StringArgumentType.greedyString())
                                     .executes(this::openPreview)
                             )
@@ -120,6 +123,10 @@ public class Image2Map implements ModInitializer {
         });
 
         ServerLifecycleEvents.SERVER_STARTED.register((s) -> CardboardWarning.checkAndAnnounce());
+    }
+
+    private static Identifier id(String use) {
+        return Identifier.fromNamespaceAndPath("image2map", use);
     }
 
     private int openPreview(CommandContext<CommandSourceStack> context) throws CommandSyntaxException {
@@ -148,7 +155,7 @@ public class Image2Map implements ModInitializer {
                 return null;
             }
 
-            if (GuiHelpers.getCurrentGui(source.getPlayer()) instanceof PreviewGui previewGui) {
+            if (SguiUtils.getCurrentGui(source.getPlayer()) instanceof PreviewGui previewGui) {
                 previewGui.close();
             }
 
@@ -359,7 +366,7 @@ public class Image2Map implements ModInitializer {
 
         source.sendSuccess(() -> Component.literal("Getting image..."), false);
 
-        var list = new ArrayList<ItemStack>();
+        var list = new ArrayList<ItemStackTemplate>();
 
         for (var image : getImageFromFolder(input)) {
             int width;
@@ -392,15 +399,15 @@ public class Image2Map implements ModInitializer {
         return 1;
     }
 
-    public static void giveToPlayer(Player player, List<ItemStack> items, String input, int width, int height) {
-        player.addItem(toSingleStack(items, input, width, height));
+    public static void giveToPlayer(Player player, List<ItemStackTemplate> items, String input, int width, int height) {
+        player.addItem(toSingleStack(items, input, width, height).create());
     }
 
-    public static ItemStack toSingleStack(List<ItemStack> items, String input, int width, int height) {
+    public static ItemStackTemplate toSingleStack(List<ItemStackTemplate> items, String input, int width, int height) {
         if (items.size() == 1) {
             return items.get(0);
         } else {
-            var bundle = new ItemStack(Items.BUNDLE);
+            var bundle = DataComponentPatch.builder();
             bundle.set(DataComponents.BUNDLE_CONTENTS, new BundleContents(items));
             bundle.set(DataComponents.CUSTOM_DATA, CustomData.of(ImageData.CODEC.codec().encodeStart(NbtOps.INSTANCE,
                     ImageData.ofBundle(Mth.ceil(width / 128d), Mth.ceil(height / 128d))).result().orElseThrow().asCompound().orElseThrow()));
@@ -408,7 +415,7 @@ public class Image2Map implements ModInitializer {
             bundle.set(DataComponents.LORE, new ItemLore(List.of(Component.literal(input))));
             bundle.set(DataComponents.ITEM_NAME, Component.literal("Maps").withStyle(ChatFormatting.GOLD));
 
-            return bundle;
+            return new ItemStackTemplate(Items.BUNDLE, bundle.build());
         }
     }
 
@@ -463,14 +470,14 @@ public class Image2Map implements ModInitializer {
                 var mapData = map.getOrDefault(DataComponents.CUSTOM_DATA, CustomData.EMPTY).copyTag().read(ImageData.CODEC);
 
                 if (mapData.isPresent() && mapData.orElseThrow().isReal()) {
-                    map = map.copy();
+                    var s = map.create();
                     var newData = mapData.orElseThrow().withDirection(right, down, facing);
-                    map.set(DataComponents.CUSTOM_DATA, CustomData.of(ImageData.CODEC.codec().encodeStart(NbtOps.INSTANCE, newData).result().orElseThrow().asCompound().orElseThrow()));
+                    s.set(DataComponents.CUSTOM_DATA, CustomData.of(ImageData.CODEC.codec().encodeStart(NbtOps.INSTANCE, newData).result().orElseThrow().asCompound().orElseThrow()));
 
                     var frame = frames[mapData.orElseThrow().x() + mapData.orElseThrow().y() * width];
 
                     if (frame != null && frame.getItem().isEmpty()) {
-                        frame.setItem(map);
+                        frame.setItem(s);
                         frame.setRotation(rot);
                         frame.setInvisible(true);
                     }

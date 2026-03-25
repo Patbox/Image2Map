@@ -1,7 +1,7 @@
 package space.essem.image2map.mixin;
 
 import com.llamalad7.mixinextras.injector.v2.WrapWithCondition;
-import eu.pb4.sgui.virtual.VirtualScreenHandlerInterface;
+import eu.pb4.sgui.api.containerwrappers.AbstractWrapperMenu;
 import net.minecraft.network.Connection;
 import net.minecraft.network.protocol.game.ServerboundCommandSuggestionPacket;
 import net.minecraft.network.protocol.game.ServerboundPlayerCommandPacket;
@@ -38,7 +38,7 @@ public abstract class ServerGamePacketListenerImplMixin extends ServerCommonPack
 
     @WrapWithCondition(method = "tickPlayer", at = @At(value = "INVOKE", target = "Lnet/minecraft/server/level/ServerPlayer;absSnapTo(DDDFF)V"))
     private boolean image2map$allowMovement(ServerPlayer instance, double x, double y, double z, float p, float yaw) {
-        if (this.player.containerMenu instanceof VirtualScreenHandlerInterface handler && handler.getGui() instanceof MapGui computerGui) {
+        if (this.player.containerMenu instanceof AbstractWrapperMenu handler && handler.getBackingGui() instanceof MapGui computerGui) {
             double l = instance.getX() - this.firstGoodX;
             double m = instance.getY() - this.firstGoodY;
             double n = instance.getZ() - this.firstGoodZ;
@@ -53,7 +53,7 @@ public abstract class ServerGamePacketListenerImplMixin extends ServerCommonPack
 
     /*@Inject(method = "onPlayerMove", at = @At("HEAD"), cancellable = true)
     private void image2map$onMove(PlayerMoveC2SPacket packet, CallbackInfo ci) {
-        if (this.player.currentScreenHandler instanceof VirtualScreenHandlerInterface handler && handler.getGui() instanceof MapGui computerGui) {
+        if (this.player.currentScreenHandler instanceof AbstractWrapperMenu handler && handler.getBackingGui() instanceof MapGui computerGui) {
             this.sendPacket(new EntityS2CPacket.Rotate(player.getId(), (byte) 0, (byte) 0, player.isOnGround()));
             this.server.execute(() -> {
                 var xRot = packet.getPitch (computerGui.xRot);
@@ -68,7 +68,7 @@ public abstract class ServerGamePacketListenerImplMixin extends ServerCommonPack
 
     @Inject(method = "handleCustomCommandSuggestions", at = @At("HEAD"), cancellable = true)
     private void image2map$onCustomSuggestion(ServerboundCommandSuggestionPacket packet, CallbackInfo ci) {
-        if (this.player.containerMenu instanceof VirtualScreenHandlerInterface handler && handler.getGui() instanceof MapGui computerGui) {
+        if (this.player.containerMenu instanceof AbstractWrapperMenu handler && handler.getBackingGui() instanceof MapGui computerGui) {
             this.server.execute(() -> {
                 computerGui.onCommandSuggestion(packet.getId(), packet.getCommand());
             });
@@ -78,7 +78,7 @@ public abstract class ServerGamePacketListenerImplMixin extends ServerCommonPack
 
     @Inject(method = "performUnsignedChatCommand", at = @At("HEAD"), cancellable = true)
     private void image2map$onCommandExecution(String command, CallbackInfo ci) {
-        if (this.player.containerMenu instanceof VirtualScreenHandlerInterface handler && handler.getGui() instanceof MapGui computerGui) {
+        if (this.player.containerMenu instanceof AbstractWrapperMenu handler && handler.getBackingGui() instanceof MapGui computerGui) {
             computerGui.executeCommand(command);
             ci.cancel();
         }
@@ -86,7 +86,7 @@ public abstract class ServerGamePacketListenerImplMixin extends ServerCommonPack
 
     @Inject(method = "handlePlayerInput", at = @At("HEAD"), cancellable = true)
     private void image2map$onPlayerInput(ServerboundPlayerInputPacket packet, CallbackInfo ci) {
-        if (this.player.containerMenu instanceof VirtualScreenHandlerInterface handler && handler.getGui() instanceof MapGui computerGui) {
+        if (this.player.containerMenu instanceof AbstractWrapperMenu handler && handler.getBackingGui() instanceof MapGui computerGui) {
             this.server.execute(() -> {
                 computerGui.onPlayerInput(packet.input());
             });
@@ -96,7 +96,7 @@ public abstract class ServerGamePacketListenerImplMixin extends ServerCommonPack
 
     @Inject(method = "handlePlayerCommand", at = @At("HEAD"), cancellable = true)
     private void image2map$onClientCommand(ServerboundPlayerCommandPacket packet, CallbackInfo ci) {
-        if (this.player.containerMenu instanceof VirtualScreenHandlerInterface handler && handler.getGui() instanceof MapGui computerGui) {
+        if (this.player.containerMenu instanceof AbstractWrapperMenu handler && handler.getBackingGui() instanceof MapGui computerGui) {
             this.server.execute(() -> {
                 computerGui.onPlayerCommand(packet.getId(), packet.getAction(), packet.getData());
             });

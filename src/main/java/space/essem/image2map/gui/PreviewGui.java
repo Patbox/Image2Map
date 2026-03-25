@@ -113,11 +113,11 @@ public class PreviewGui extends MapGui {
     }
 
     @Override
-    public void onClose() {
+    public void onManualClose() {
         if (this.imageProcessing != null) {
             this.imageProcessing.cancel(true);
         }
-        super.onClose();
+        super.onManualClose();
     }
 
     private void drawLoading() {
