@@ -25,6 +25,16 @@ In case of maps bigger than 128x128 pixels, you will get them in a bundle.
 Clicking with it on top-left corner of item frames will put all maps in correct places.
 Works for any item frame on wall, floor or ceiling.
 
+## Permissions  
+This mod supports permissions via **LuckPerms** (or any Fabric-compatible permission provider)
+| Permission Node | Description |
+| :--- | :--- |
+| `image2map.use` | Master switch to see/use any `/image2map` command. |
+| `image2map.create` | Allows creating maps from a URL. |
+| `image2map.preview` | Allows using the Preview GUI. |
+| `image2map.multimap` | Allows images > 128x128 (Bundles/Quick-Place). |
+| `image2map.createfolder`| Allows creating maps from server-side files. |
+
 ## Downloads:
 - Modrinth: https://modrinth.com/mod/image2map
 - Curseforge: https://www.curseforge.com/minecraft/mc-mods/image2map
