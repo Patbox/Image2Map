@@ -24,6 +24,7 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.HoverEvent;
 import net.minecraft.network.chat.Style;
 import net.minecraft.resources.Identifier;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.permissions.PermissionLevel;
 import net.minecraft.util.Mth;
 import net.minecraft.world.InteractionHand;
@@ -464,14 +465,13 @@ public class Image2Map implements ModInitializer {
                     if (!entities.isEmpty()) {
                         frames[x + y * width] = entities.get(0);
                     } else {
-                        player.displayClientMessage(
+                        player.sendSystemMessage(
                           Component.literal(
                             String.format(
                               "Item frame wall is not large enough, expected %dx%d or larger",
                               width, height
                             )
-                          ),
-                          false
+                          )
                         );
                         return true;
                     }
@@ -591,6 +591,7 @@ public class Image2Map implements ModInitializer {
                     inputPath = "unknown";
                 }
 
+                ArrayList<ItemStackTemplate> frameItemTemplates = new ArrayList<>();
                 // Clear the right/down/facing data from the items,
                 // so they don't get batch removed if placed individually later.
                 for (ItemStack item : frameItems) {
@@ -616,9 +617,11 @@ public class Image2Map implements ModInitializer {
                             ).result().orElseThrow().asCompound().orElseThrow()
                         )
                     );
+
+                    frameItemTemplates.add(ItemStackTemplate.fromNonEmptyStack(item));
                 }
 
-                itemFrameEntity.spawnAtLocation(serverLevel, toSingleStack(frameItems, inputPath, width * 128, height * 128));
+                itemFrameEntity.spawnAtLocation(serverLevel, toSingleStack(frameItemTemplates, inputPath, width * 128, height * 128).create());
             }
 
             return true;
@@ -680,7 +683,7 @@ public class Image2Map implements ModInitializer {
 
         // Block insert if the bundle already contains a map with the same tiling coordinates.
         for (var map : bundleMaps.items()) {
-            var data = getImageData(map);
+            var data = getImageData(map.create());
             if (data == null) continue;
             if (data.x() == mapData.x() && data.y() == mapData.y()) {
                 return true;
