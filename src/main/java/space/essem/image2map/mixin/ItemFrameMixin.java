@@ -8,6 +8,7 @@ import net.minecraft.world.entity.decoration.ItemFrame;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
+import net.minecraft.world.phys.Vec3;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
@@ -22,7 +23,7 @@ public class ItemFrameMixin {
     private boolean fixed;
 
     @Inject(method = "interact", at = @At("HEAD"), cancellable = true)
-    private void image2map$fillMaps(Player player, InteractionHand hand, CallbackInfoReturnable<InteractionResult> cir) {
+    private void image2map$fillMaps(Player player, InteractionHand hand, Vec3 location, CallbackInfoReturnable<InteractionResult> cir) {
         if (!this.fixed && Image2Map.clickItemFrame(player, hand, (ItemFrame) (Object) this)) {
             cir.setReturnValue(InteractionResult.SUCCESS);
         }

@@ -153,7 +153,7 @@ public class MapGui extends HotbarGui {
     }*/
 
     @Override
-    public void onClose() {
+    public void onManualClose() {
         //this.cursor.remove();
         this.destroy();
         this.player.level().getServer().getCommands().sendCommands(this.player);
@@ -167,7 +167,7 @@ public class MapGui extends HotbarGui {
         if (this.player.isPassenger()) {
             this.player.connection.send(new ClientboundSetPassengersPacket(Objects.requireNonNull(this.player.getVehicle())));
         }
-        super.onClose();
+        super.onManualClose();
     }
 
     public void onCommandSuggestion(int id, String fullCommand) {
@@ -196,17 +196,6 @@ public class MapGui extends HotbarGui {
     @Override
     public boolean canPlayerClose() {
         return false;
-    }
-
-    @Override
-    public boolean onClickEntity(int entityId, EntityInteraction type, boolean isSneaking, @Nullable Vec3 interactionPos) {
-        /*if (type == EntityInteraction.ATTACK) {
-            this.renderer.click(this.cursorX / 2, this.cursorY / 2, ScreenElement.ClickType.LEFT_DOWN);
-        } else {
-            this.renderer.click(this.cursorX / 2, this.cursorY / 2, ScreenElement.ClickType.RIGHT_DOWN);
-        }*/
-
-        return super.onClickEntity(entityId, type, isSneaking, interactionPos);
     }
 
     public void setDistance(double i) {

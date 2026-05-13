@@ -10,6 +10,7 @@ import eu.pb4.mapcanvas.api.core.CanvasColor;
 import eu.pb4.mapcanvas.api.core.CanvasImage;
 import eu.pb4.mapcanvas.api.utils.CanvasUtils;
 import net.minecraft.ChatFormatting;
+import net.minecraft.core.component.DataComponentPatch;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.nbt.NbtOps;
@@ -20,6 +21,7 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.util.ARGB;
 import net.minecraft.util.Mth;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.ItemStackTemplate;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.item.component.CustomData;
 import net.minecraft.world.item.component.ItemLore;
@@ -37,14 +39,14 @@ public class MapRenderer {
         };
     }
 
-    public static List<ItemStack> toVanillaItems(CanvasImage image, ServerLevel world, String url) {
+    public static List<ItemStackTemplate> toVanillaItems(CanvasImage image, ServerLevel world, String url) {
         var xSections = Mth.ceil(image.getWidth() / 128d);
         var ySections = Mth.ceil(image.getHeight() / 128d);
 
         var xDelta = (xSections * 128 - image.getWidth()) / 2;
         var yDelta = (ySections * 128 - image.getHeight()) / 2;
 
-        var items = new ArrayList<ItemStack>();
+        var items = new ArrayList<ItemStackTemplate>();
 
         for (int ys = 0; ys < ySections; ys++) {
             for (int xs = 0; xs < xSections; xs++) {
@@ -64,7 +66,7 @@ public class MapRenderer {
 
                 world.setMapData(id, state);
 
-                var stack = new ItemStack(Items.FILLED_MAP);
+                var stack = DataComponentPatch.builder();
                 stack.set(DataComponents.MAP_ID, id);
                 var data = ImageData.ofSimple(xs, ys, xSections, ySections);
                 stack.set(DataComponents.CUSTOM_DATA, CustomData.of(ImageData.CODEC.codec().encodeStart(NbtOps.INSTANCE, data).result().orElseThrow().asCompound().orElseThrow()));
@@ -72,7 +74,7 @@ public class MapRenderer {
                         Component.literal(xs + " / " + ys).withStyle(ChatFormatting.GRAY),
                         Component.literal(url)
                 )));
-                items.add(stack);
+                items.add(new ItemStackTemplate(Items.FILLED_MAP, stack.build()));
             }
         }
 
