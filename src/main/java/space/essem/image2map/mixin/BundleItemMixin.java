@@ -1,18 +1,18 @@
 package space.essem.image2map.mixin;
 
+import net.minecraft.world.entity.SlotAccess;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.inventory.ClickAction;
+import net.minecraft.world.inventory.Slot;
+import net.minecraft.world.item.BundleItem;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.Level;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
-import net.minecraft.entity.player.PlayerEntity;
-import net.minecraft.inventory.StackReference;
-import net.minecraft.item.BundleItem;
-import net.minecraft.item.ItemStack;
-import net.minecraft.screen.slot.Slot;
-import net.minecraft.util.ClickType;
-import net.minecraft.world.World;
 import space.essem.image2map.Image2Map;
 
 @Mixin(BundleItem.class)
@@ -22,8 +22,8 @@ public class BundleItemMixin {
      * and right-clicking to drop an item, destroy the bundle if it ends up empty.
      * Overridden if the player is in creative mode.
      */
-    @Inject(method = "dropContentsOnUse", at = @At("RETURN"))
-    private void image2map$dropContentsOnUse(World world, PlayerEntity player, ItemStack stack, CallbackInfo ci) {
+    @Inject(method = "dropContent(Lnet/minecraft/world/level/Level;Lnet/minecraft/world/entity/player/Player;Lnet/minecraft/world/item/ItemStack;)V", at = @At("RETURN"))
+    private void image2map$dropContent(Level level, Player player, ItemStack stack, CallbackInfo ci) {
         if (player.isCreative()) {
             return;
         }
@@ -37,17 +37,17 @@ public class BundleItemMixin {
      * the item into the bundle if it's a valid image2map map for the bundle.
      * Overridden if the player is in creative mode.
      */
-    @Inject(method = "onStackClicked", at = @At("HEAD"), cancellable = true)
-    private void image2map$onStackClickedHead(ItemStack bundle, Slot slot, ClickType clickType, PlayerEntity player, CallbackInfoReturnable<Boolean> cir) {
+    @Inject(method = "overrideStackedOnOther", at = @At("HEAD"), cancellable = true)
+    private void image2map$overrideStackedOnOtherHead(ItemStack itemStack, Slot slot, ClickAction clickAction, Player player, CallbackInfoReturnable<Boolean> cir) {
         if (player.isCreative()) {
             return;
         }
 
-        if (clickType != ClickType.LEFT) {
+        if (clickAction != ClickAction.PRIMARY) {
             return;
         }
 
-        if (Image2Map.isInvalidMapForBundle(bundle, slot.getStack())) {
+        if (Image2Map.isInvalidMapForBundle(itemStack, slot.getItem())) {
             cir.setReturnValue(false);
         }
     }
@@ -58,17 +58,17 @@ public class BundleItemMixin {
      * destroy the bundle if it ends up empty.
      * Overridden if the player is in creative mode.
      */
-    @Inject(method = "onStackClicked", at = @At("RETURN"))
-    private void image2map$onStackClickedReturn(ItemStack bundle, Slot slot, ClickType clickType, PlayerEntity player, CallbackInfoReturnable<Boolean> cir) {
+    @Inject(method = "overrideStackedOnOther", at = @At("RETURN"))
+    private void image2map$overrideStackedOnOtherReturn(ItemStack itemStack, Slot slot, ClickAction clickAction, Player player, CallbackInfoReturnable<Boolean> cir) {
         if (player.isCreative()) {
             return;
         }
 
-        if (clickType != ClickType.RIGHT) {
+        if (clickAction != ClickAction.SECONDARY) {
             return;
         }
 
-        Image2Map.destroyBundleOnEmpty(bundle);
+        Image2Map.destroyBundleOnEmpty(itemStack);
     }
 
     /**
@@ -77,21 +77,21 @@ public class BundleItemMixin {
      * the item into the bundle if it's a valid image2map map for the bundle.
      * Overridden if the player is in creative mode.
      */
-    @Inject(method = "onClicked", at = @At("HEAD"), cancellable = true)
-    private void image2map$onClickedHead(
+    @Inject(method = "overrideOtherStackedOnMe", at = @At("HEAD"), cancellable = true)
+    private void image2map$overrideOtherStackedOnMeHead(
         ItemStack bundle,
         ItemStack otherStack,
         Slot slot,
-        ClickType clickType,
-        PlayerEntity player,
-        StackReference cursorStackReference,
+        ClickAction clickAction,
+        Player player,
+        SlotAccess slotAccess,
         CallbackInfoReturnable<Boolean> cir
     ) {
         if (player.isCreative()) {
             return;
         }
 
-        if (clickType != ClickType.LEFT) {
+        if (clickAction != ClickAction.PRIMARY) {
             return;
         }
 
@@ -106,21 +106,21 @@ public class BundleItemMixin {
      * destroy the bundle if it ends up empty.
      * Overridden if the player is in creative mode.
      */
-    @Inject(method = "onClicked", at = @At("RETURN"))
-    private void image2map$onClickedReturn(
+    @Inject(method = "overrideOtherStackedOnMe", at = @At("RETURN"))
+    private void image2map$overrideOtherStackedOnMeReturn(
         ItemStack bundle,
         ItemStack otherStack,
         Slot slot,
-        ClickType clickType,
-        PlayerEntity player,
-        StackReference cursorStackReference,
+        ClickAction clickAction,
+        Player player,
+        SlotAccess slotAccess,
         CallbackInfoReturnable<Boolean> cir
     ) {
         if (player.isCreative()) {
             return;
         }
 
-        if (clickType != ClickType.RIGHT) {
+        if (clickAction != ClickAction.SECONDARY) {
             return;
         }
 

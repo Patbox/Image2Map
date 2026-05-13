@@ -23,6 +23,7 @@ import net.minecraft.nbt.*;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.HoverEvent;
 import net.minecraft.network.chat.Style;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.util.Mth;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.Entity;
@@ -60,6 +61,7 @@ import java.time.Duration;
 import java.time.temporal.TemporalUnit;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -456,8 +458,8 @@ public class Image2Map implements ModInitializer {
                     if (!entities.isEmpty()) {
                         frames[x + y * width] = entities.get(0);
                     } else {
-                        player.sendMessage(
-                          Text.literal(
+                        player.displayClientMessage(
+                          Component.literal(
                             String.format(
                               "Item frame wall is not large enough, expected %dx%d or larger",
                               width, height
@@ -497,10 +499,10 @@ public class Image2Map implements ModInitializer {
     }
 
     private static @Nullable ImageData getImageData(ItemStack item) {
-        var tag = item.get(DataComponentTypes.CUSTOM_DATA);
+        var tag = item.get(DataComponents.CUSTOM_DATA);
         if (tag == null) return null;
-        var codec = tag.get(ImageData.CODEC);
-        return codec.isSuccess() ? codec.getOrThrow() : null;
+        var codec = tag.copyTag().read(ImageData.CODEC);
+        return codec.orElse(null);
     }
 
     private static @Nullable String getInputPathFromLore(ItemStack stack) {
@@ -508,7 +510,7 @@ public class Image2Map implements ModInitializer {
             return null;
         }
 
-        var lore = stack.get(DataComponentTypes.LORE);
+        var lore = stack.get(DataComponents.LORE);
         if (lore == null || lore.lines().isEmpty()) {
             return null;
         }
@@ -516,7 +518,7 @@ public class Image2Map implements ModInitializer {
         return lore.lines().getLast().getString();
     }
 
-    public static boolean destroyItemFrame(Entity player, ItemFrame itemFrameEntity) {
+    public static boolean destroyItemFrame(ServerLevel serverLevel, Entity player, ItemFrame itemFrameEntity) {
         var stack = itemFrameEntity.getItem();
         var tag = stack.getOrDefault(DataComponents.CUSTOM_DATA, CustomData.EMPTY).copyTag().read(ImageData.CODEC);
 
@@ -533,7 +535,7 @@ public class Image2Map implements ModInitializer {
             Direction facing = tag.orElseThrow().facing().get();
 
             var world = itemFrameEntity.level();
-            var itemFramePosition = itemFrameEntity.getBlockPos();
+            var itemFramePosition = itemFrameEntity.blockPosition();
             var start = itemFrameEntity.blockPosition();
 
             var mut = start.mutable();
@@ -555,7 +557,7 @@ public class Image2Map implements ModInitializer {
 
                     // Fix for the item frame technically not existing in the world
                     // after the block holding it has been destroyed
-                    ItemFrameEntity frame = null;
+                    ItemFrame frame = null;
                     if (!entities.isEmpty()) {
                         frame = entities.getFirst();
                     } else if (itemFramePosition.equals(mut)) {
@@ -586,27 +588,31 @@ public class Image2Map implements ModInitializer {
                 // Clear the right/down/facing data from the items,
                 // so they don't get batch removed if placed individually later.
                 for (ItemStack item : frameItems) {
-                    var customData = item.getOrDefault(DataComponentTypes.CUSTOM_DATA, NbtComponent.DEFAULT).get(ImageData.CODEC).getOrThrow();
+                    var customData = item.getOrDefault(DataComponents.CUSTOM_DATA, CustomData.EMPTY)
+                        .copyTag()
+                        .read(ImageData.CODEC)
+                            .get();
                     item.set(
-                        DataComponentTypes.CUSTOM_DATA,
-                        NbtComponent.DEFAULT.with(
-                            NbtOps.INSTANCE,
-                            ImageData.CODEC,
-                            new ImageData(
-                                customData.x(),
-                                customData.y(),
-                                customData.width(),
-                                customData.height(),
-                                customData.quickPlace(),
-                                Optional.empty(),
-                                Optional.empty(),
-                                Optional.empty()
-                            )
-                        ).getOrThrow()
+                        DataComponents.CUSTOM_DATA,
+                        CustomData.of(
+                            ImageData.CODEC.codec().encodeStart(
+                                NbtOps.INSTANCE,
+                                new ImageData(
+                                    customData.x(),
+                                    customData.y(),
+                                    customData.width(),
+                                    customData.height(),
+                                    customData.quickPlace(),
+                                    Optional.empty(),
+                                    Optional.empty(),
+                                    Optional.empty()
+                                )
+                            ).result().orElseThrow().asCompound().orElseThrow()
+                        )
                     );
                 }
 
-                itemFrameEntity.dropStack(serverWorld, toSingleStack(frameItems, inputPath, width * 128, height * 128));
+                itemFrameEntity.spawnAtLocation(serverLevel, toSingleStack(frameItems, inputPath, width * 128, height * 128));
             }
 
             return true;
@@ -620,14 +626,14 @@ public class Image2Map implements ModInitializer {
             return;
         }
 
-        var contents = bundle.get(DataComponentTypes.BUNDLE_CONTENTS);
+        var contents = bundle.get(DataComponents.BUNDLE_CONTENTS);
         if (contents == null || contents.isEmpty()) {
-            bundle.decrement(1);
+            bundle.shrink(1);
         }
     }
 
     public static boolean isInvalidMapForBundle(ItemStack bundle, ItemStack item) {
-        if (item.isOf(Items.AIR)) {
+        if (item.is(Items.AIR)) {
             return false;
         }
 
@@ -639,7 +645,7 @@ public class Image2Map implements ModInitializer {
         }
 
         // Block insert if item isn't a map
-        if (!item.isOf(Items.FILLED_MAP)) {
+        if (!item.is(Items.FILLED_MAP)) {
             return true;
         }
 
@@ -658,7 +664,7 @@ public class Image2Map implements ModInitializer {
             return true;
         }
 
-        var bundleMaps = bundle.get(DataComponentTypes.BUNDLE_CONTENTS);
+        var bundleMaps = bundle.get(DataComponents.BUNDLE_CONTENTS);
 
         // Potential edge case for empty image2map bundle? Best to check either way.
         // Allow insert if bundle is empty.
@@ -667,7 +673,7 @@ public class Image2Map implements ModInitializer {
         }
 
         // Block insert if the bundle already contains a map with the same tiling coordinates.
-        for (var map : bundleMaps.iterate()) {
+        for (var map : bundleMaps.items()) {
             var data = getImageData(map);
             if (data == null) continue;
             if (data.x() == mapData.x() && data.y() == mapData.y()) {
