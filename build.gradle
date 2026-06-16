@@ -37,7 +37,7 @@ dependencies {
 			"common:common-io",
 			"common:common-image",
 	].forEach {
-		implementation include("com.twelvemonkeys.${it}:3.12.0")
+		implementation include("com.twelvemonkeys.${it}:3.13.1")
 	}
 }
 

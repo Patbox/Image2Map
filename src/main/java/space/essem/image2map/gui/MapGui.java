@@ -32,6 +32,7 @@ import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.EntityTypes;
 import net.minecraft.world.entity.PositionMoveRotation;
 import net.minecraft.world.entity.animal.equine.Horse;
 import net.minecraft.world.entity.player.Input;
@@ -71,7 +72,8 @@ public class MapGui extends HotbarGui {
         var pos = player.blockPosition().atY(2048);
         this.pos = pos;
 
-        this.entity = new Horse(EntityType.HORSE, player.level());
+        this.entity = new Horse(EntityTypes.HORSE, player.level());
+        this.entity.setId(player.level().getNextEntityId());
         this.entity.setYRot(0);
         this.entity.setYHeadRot(0);
         this.entity.setNoGravity(true);
