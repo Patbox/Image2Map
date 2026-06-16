@@ -33,7 +33,7 @@ public class ItemFrameMixin {
     private void image2map$destroyMaps(ServerLevel world, Entity entity, boolean dropSelf, CallbackInfo ci) {
         var frame = (ItemFrame) (Object) this;
 
-        if (!this.fixed && Image2Map.destroyItemFrame(entity, frame)) {
+        if (!this.fixed && Image2Map.destroyItemFrame(world, entity, frame)) {
             if (dropSelf) {
                 frame.spawnAtLocation(world, new ItemStack(Items.ITEM_FRAME));
             }
