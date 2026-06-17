@@ -334,6 +334,14 @@ public class Image2Map implements ModInitializer {
                 }
             }
 
+            if (width > 128 || height > 128) {
+                if (!FabricPermissionBridge.checkPermission(source, id("multimap"), true)) {
+                    source.sendSuccess(() -> Component.literal("You do not have permission to create images larger than 128x128 (Multimaps)!")
+                            .withStyle(ChatFormatting.RED), false);
+                    return null;
+                }
+            }
+
             int finalHeight = height;
             int finalWidth = width;
 
