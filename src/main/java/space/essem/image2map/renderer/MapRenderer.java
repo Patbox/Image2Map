@@ -6,6 +6,7 @@ import java.awt.image.BufferedImage;
 import java.awt.image.DataBufferByte;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CancellationException;
 import eu.pb4.mapcanvas.api.core.CanvasColor;
 import eu.pb4.mapcanvas.api.core.CanvasImage;
 import eu.pb4.mapcanvas.api.utils.CanvasUtils;
@@ -31,8 +32,10 @@ import space.essem.image2map.ImageData;
 
 public class MapRenderer {
     public static CanvasImage render(BufferedImage image, DitherMode mode, int width, int height) {
+        if (Thread.currentThread().isInterrupted()) throw new CancellationException("Image rendering cancelled");
         Image resizedImage = image.getScaledInstance(width, height, Image.SCALE_DEFAULT);
         BufferedImage resized = convertToBufferedImage(resizedImage);
+        if (Thread.currentThread().isInterrupted()) throw new CancellationException("Image rendering cancelled");
         return switch (mode) {
             case NONE -> CanvasImage.from(resized);
             case FLOYD -> CanvasImage.fromWithFloydSteinbergDither(resized);

@@ -42,7 +42,24 @@ dependencies {
 }
 
 loom {
+	splitEnvironmentSourceSets()
+	mods {
+		image2map {
+			sourceSet sourceSets.main
+			sourceSet sourceSets.client
+		}
+	}
 	accessWidenerPath = file("src/main/resources/image2map.accesswidener")
+}
+
+// Minecraft 26.3 no longer ships TinyFD. Bundle just its bindings and native libraries;
+// Minecraft provides the matching LWJGL core. Server code never loads these classes.
+dependencies {
+	clientImplementation include("org.lwjgl:lwjgl-tinyfd:3.4.3") { transitive = false }
+	['natives-windows', 'natives-windows-arm64', 'natives-linux', 'natives-linux-arm64',
+	 'natives-macos', 'natives-macos-arm64'].each { platform ->
+		clientRuntimeOnly include("org.lwjgl:lwjgl-tinyfd:3.4.3:${platform}") { transitive = false }
+	}
 }
 
 processResources {
@@ -70,6 +87,24 @@ java {
 	// If you remove this line, sources will not be generated.
 	withSourcesJar()
 }
+
+// Dependency-free regression harness for the security boundary and upload lifecycle.
+sourceSets {
+	securityTest {
+		compileClasspath += sourceSets.main.output + sourceSets.main.compileClasspath
+		runtimeClasspath += sourceSets.main.runtimeClasspath
+	}
+}
+tasks.register('securityTest', JavaExec) {
+	dependsOn securityTestClasses
+	classpath = sourceSets.securityTest.runtimeClasspath
+	mainClass = 'space.essem.image2map.SecurityRegressionTest'
+	systemProperty 'java.awt.headless', 'true'
+	args layout.buildDirectory.dir('security-test').get().asFile.absolutePath
+	workingDir layout.buildDirectory.dir('security-test')
+	doFirst { workingDir.mkdirs() }
+}
+check.dependsOn securityTest
 
 jar {
 	from("LICENSE") {

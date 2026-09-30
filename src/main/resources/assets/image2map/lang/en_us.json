@@ -1,0 +1,10 @@
+{
+  "image2map.upload.title": "Image2Map upload",
+  "image2map.upload.selecting": "Choose an image in the file dialog",
+  "image2map.upload.confirm.title": "Upload this local image?",
+  "image2map.upload.confirm.message": "This image will be uploaded to the server: %s\nConfirm upload?",
+  "image2map.upload.confirm.yes": "Upload image",
+  "image2map.upload.reading": "Checking the selected image...",
+  "image2map.upload.progress": "Uploading image: %s%%",
+  "image2map.upload.processing": "Server is processing the image..."
+}

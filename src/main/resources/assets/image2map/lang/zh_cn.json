@@ -1,0 +1,10 @@
+{
+  "image2map.upload.title": "Image2Map 图片上传",
+  "image2map.upload.selecting": "请在文件对话框中选择图片",
+  "image2map.upload.confirm.title": "确认上传这张本地图片？",
+  "image2map.upload.confirm.message": "将把此图片上传到服务器：%s\n确定上传吗？",
+  "image2map.upload.confirm.yes": "上传图片",
+  "image2map.upload.reading": "正在检查所选图片…",
+  "image2map.upload.progress": "正在上传图片：%s%%",
+  "image2map.upload.processing": "服务端正在处理图片…"
+}

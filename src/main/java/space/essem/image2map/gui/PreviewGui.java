@@ -6,10 +6,8 @@ import com.mojang.brigadier.arguments.BoolArgumentType;
 import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import com.mojang.brigadier.builder.RequiredArgumentBuilder;
-import com.mojang.brigadier.suggestion.SuggestionProvider;
 import com.mojang.brigadier.tree.ArgumentCommandNode;
 import com.mojang.brigadier.tree.CommandNode;
-import com.mojang.brigadier.tree.RootCommandNode;
 import eu.pb4.mapcanvas.api.core.CanvasColor;
 import eu.pb4.mapcanvas.api.core.CanvasImage;
 import eu.pb4.mapcanvas.api.font.DefaultFonts;
@@ -19,7 +17,7 @@ import space.essem.image2map.Image2Map;
 import space.essem.image2map.renderer.MapRenderer;
 
 import java.awt.image.BufferedImage;
-import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Future;
 import net.minecraft.commands.synchronization.SuggestionProviders;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.protocol.game.ClientboundCommandsPacket;
@@ -40,15 +38,18 @@ public class PreviewGui extends MapGui {
     private int width;
     private int height;
     private boolean grid = true;
-    private CompletableFuture<CanvasImage> imageProcessing;
+    private Future<CanvasImage> imageProcessing;
+    private final Runnable onClosed;
+    private boolean closed;
 
-    public PreviewGui(ServerPlayer player, BufferedImage image, String source, Image2Map.DitherMode ditherMode, int width, int height) {
+    public PreviewGui(ServerPlayer player, BufferedImage image, String source, Image2Map.DitherMode ditherMode, int width, int height, Runnable onClosed) {
         super(player, Mth.ceil(width / 128d) + 2, Mth.ceil(height / 128d) + 2);
         this.width = width;
         this.height = height;
         this.ditherMode = ditherMode;
         this.source = source;
         this.sourceImage = image;
+        this.onClosed = onClosed;
 
         player.connection.send(new ClientboundCommandsPacket(COMMANDS.getRoot(), new ClientboundCommandsPacket.NodeInspector<>() {
             @Nullable
@@ -81,32 +82,34 @@ public class PreviewGui extends MapGui {
 
     @Override
     public void onTick() {
+        if (closed) return;
         if (this.dirty) {
             if (this.imageProcessing != null) {
                 this.imageProcessing.cancel(true);
             }
 
-            this.imageProcessing = CompletableFuture.supplyAsync(() ->  MapRenderer.render(this.sourceImage, this.ditherMode, this.width, this.height));
+            try {
+                this.imageProcessing = Image2Map.TASKS.renderPreview(this.sourceImage, this.ditherMode, this.width, this.height);
+            } catch (RuntimeException exception) {
+                this.player.sendSystemMessage(Component.literal("Image processing queue is full"));
+                this.close();
+                return;
+            }
             this.dirty = false;
         }
 
         if (this.imageProcessing != null) {
             if (this.imageProcessing.isDone()) {
-                if (this.imageProcessing.isCompletedExceptionally()) {
+                try {
+                    this.image = this.imageProcessing.get();
                     this.imageProcessing = null;
-                } else {
-                    try {
-                        this.image = this.imageProcessing.get();
-                        this.imageProcessing = null;
-
-                        this.xPos = (this.canvas.getWidth() - this.image.getWidth()) / 2;
-                        this.yPos = (this.canvas.getHeight() - this.image.getHeight()) / 2;
-
-                        this.draw();
-                    } catch (Throwable e) {
-                        e.printStackTrace();
-                        this.close();
-                    }
+                    this.xPos = (this.canvas.getWidth() - this.image.getWidth()) / 2;
+                    this.yPos = (this.canvas.getHeight() - this.image.getHeight()) / 2;
+                    this.draw();
+                } catch (Exception exception) {
+                    Image2Map.LOGGER.warn("Preview rendering failed", exception);
+                    this.player.sendSystemMessage(Component.literal("Preview image processing failed"));
+                    this.close();
                 }
             }
         }
@@ -114,15 +117,18 @@ public class PreviewGui extends MapGui {
 
     @Override
     public void onManualClose() {
+        if (this.closed) return;
+        this.closed = true;
         if (this.imageProcessing != null) {
             this.imageProcessing.cancel(true);
         }
-        super.onManualClose();
+        try { super.onManualClose(); }
+        finally { if (this.onClosed != null) this.onClosed.run(); }
     }
 
     private void drawLoading() {
         var text = "Loading...";
-        var size = (int) Math.min(this.height / 128d, this.width / 128d) * 16;
+        var size = Math.max(8, (int) Math.min(this.height / 128d, this.width / 128d) * 16);
         var width = DefaultFonts.VANILLA.getTextWidth(text, size);
 
         CanvasUtils.fill(this.canvas,
@@ -137,6 +143,7 @@ public class PreviewGui extends MapGui {
     }
 
     private void draw() {
+        if (this.image == null) return;
         var image = new CanvasImage(this.canvas.getWidth(), this.canvas.getHeight());
 
         if (this.grid) {
@@ -160,6 +167,10 @@ public class PreviewGui extends MapGui {
     }
 
     public void setSize(int width, int height) {
+        if (width < 1 || height < 1 || width > Image2Map.CONFIG.imageMaxWidthHeight || height > Image2Map.CONFIG.imageMaxWidthHeight) {
+            this.player.sendSystemMessage(Component.literal("Map size exceeds the configured output limit"));
+            return;
+        }
         if (
                 this.canvas.getWidth() < width + 256 || this.canvas.getHeight() < height + 256
                         || this.canvas.getWidth() > width * 2 || this.canvas.getHeight() > height * 2
@@ -186,8 +197,8 @@ public class PreviewGui extends MapGui {
     public void executeCommand(String command) {
         try {
             COMMANDS.execute(command, this);
-        } catch (Throwable e) {
-            e.printStackTrace();
+        } catch (Exception e) {
+            this.player.sendSystemMessage(Component.literal("Preview command failed: " + e.getMessage()));
         }
     }
 
@@ -206,13 +217,13 @@ public class PreviewGui extends MapGui {
         }));
 
         COMMANDS.register(literal("save").executes(x -> {
-            if (x.getSource().imageProcessing == null) {
+            if (!x.getSource().dirty && x.getSource().imageProcessing == null && x.getSource().image != null) {
                 x.getSource().drawLoading();
-                Image2Map.giveToPlayer(x.getSource().player,
-                        MapRenderer.toVanillaItems(x.getSource().image, x.getSource().player.level(), x.getSource().source),
-                        x.getSource().source, x.getSource().width, x.getSource().height);
-
-                x.getSource().close();
+                try {
+                    Image2Map.giveToPlayer(x.getSource().player,
+                            MapRenderer.toVanillaItems(x.getSource().image, x.getSource().player.level(), x.getSource().source),
+                            x.getSource().source, x.getSource().width, x.getSource().height);
+                } finally { x.getSource().close(); }
             } else {
                 x.getSource().player.sendSystemMessage(Component.literal("Image is still processed!"));
             }
@@ -220,13 +231,13 @@ public class PreviewGui extends MapGui {
         }));
 
         COMMANDS.register(literal("size")
-                .then(argument("width", IntegerArgumentType.integer(1, Image2Map.CONFIG.maxSize))
+                .then(argument("width", IntegerArgumentType.integer(1, Image2Map.CONFIG.imageMaxWidthHeight))
                         .executes(x -> {
                             var w = IntegerArgumentType.getInteger(x, "width");
-                            x.getSource().setSize(w, x.getSource().sourceImage.getHeight() * w / x.getSource().sourceImage.getWidth());
+                            x.getSource().setSize(w, Math.max(1, (int) ((long) x.getSource().sourceImage.getHeight() * w / x.getSource().sourceImage.getWidth())));
                             return 0;
                         })
-                        .then(argument("height", IntegerArgumentType.integer(1, Image2Map.CONFIG.maxSize)).executes(x -> {
+                        .then(argument("height", IntegerArgumentType.integer(1, Image2Map.CONFIG.imageMaxWidthHeight)).executes(x -> {
                             x.getSource().setSize(IntegerArgumentType.getInteger(x, "width"), IntegerArgumentType.getInteger(x, "height"));
                             return 0;
                         })))

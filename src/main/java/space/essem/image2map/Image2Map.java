@@ -1,30 +1,14 @@
 package space.essem.image2map;
 
-import com.mojang.brigadier.arguments.IntegerArgumentType;
-import com.mojang.brigadier.arguments.StringArgumentType;
-import com.mojang.brigadier.context.CommandContext;
-import com.mojang.brigadier.exceptions.CommandSyntaxException;
-import com.mojang.brigadier.exceptions.SimpleCommandExceptionType;
-import com.mojang.brigadier.suggestion.SuggestionProvider;
-import com.mojang.brigadier.suggestion.Suggestions;
-import com.mojang.brigadier.suggestion.SuggestionsBuilder;
 import com.mojang.logging.LogUtils;
-import eu.pb4.sgui.api.SguiUtils;
 import net.fabricmc.api.ModInitializer;
-import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
-import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.ChatFormatting;
-import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.core.Direction;
 import net.minecraft.core.component.DataComponentPatch;
 import net.minecraft.core.component.DataComponents;
-import net.minecraft.nbt.*;
+import net.minecraft.nbt.NbtOps;
 import net.minecraft.network.chat.Component;
-import net.minecraft.network.chat.HoverEvent;
-import net.minecraft.network.chat.Style;
-import net.minecraft.resources.Identifier;
-import net.minecraft.server.permissions.PermissionLevel;
 import net.minecraft.util.Mth;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.Entity;
@@ -38,365 +22,33 @@ import net.minecraft.world.item.component.CustomData;
 import net.minecraft.world.item.component.ItemLore;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
-import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
 import space.essem.image2map.config.Image2MapConfig;
-import space.essem.image2map.gui.PreviewGui;
-import space.essem.image2map.renderer.MapRenderer;
+import space.essem.image2map.network.UploadPayloads;
+import space.essem.image2map.upload.ServerImageTasks;
 
-import javax.imageio.ImageIO;
-import java.awt.image.BufferedImage;
-import java.io.File;
-import java.io.IOException;
-import java.net.URI;
-import java.net.URL;
-import java.net.URLConnection;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
-import java.nio.file.FileVisitResult;
-import java.nio.file.FileVisitor;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.attribute.BasicFileAttributes;
-import java.time.Duration;
-import java.time.temporal.TemporalUnit;
-import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
-
-import static net.minecraft.commands.Commands.argument;
-import static net.minecraft.commands.Commands.literal;
-
 
 public class Image2Map implements ModInitializer {
     public static final Logger LOGGER = LogUtils.getLogger();
-
-    public static Image2MapConfig CONFIG = Image2MapConfig.loadOrCreateConfig();
+    public static final Image2MapConfig CONFIG = Image2MapConfig.loadOrCreateConfig();
+    public static final ServerImageTasks TASKS = new ServerImageTasks();
 
     @Override
     public void onInitialize() {
-        CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) -> {
-            dispatcher.register(literal("image2map")
-                    .requires(FabricPermissionBridge.require(id("use"), PermissionLevel.byId(CONFIG.minPermLevel)))
-                    .then(literal("create")
-                            .requires(FabricPermissionBridge.require(id("create"), true))
-                            .then(argument("width", IntegerArgumentType.integer(1, CONFIG.maxSize))
-                                    .then(argument("height", IntegerArgumentType.integer(1, CONFIG.maxSize))
-                                            .then(argument("mode", StringArgumentType.word()).suggests(new DitherModeSuggestionProvider())
-                                                    .then(argument("path", StringArgumentType.greedyString())
-                                                            .executes(this::createMap))
-                                            )
-                                    )
-                            )
-                            .then(argument("mode", StringArgumentType.word()).suggests(new DitherModeSuggestionProvider())
-                                    .then(argument("path", StringArgumentType.greedyString())
-                                            .executes(this::createMap)
-                                    )
-                            )
-                    )
-                    .then(literal("create-folder")
-                            .requires(FabricPermissionBridge.require(id("createfolder"), PermissionLevel.ADMINS).and(x -> CONFIG.allowLocalFiles))
-                            .then(argument("width", IntegerArgumentType.integer(1, CONFIG.maxSize))
-                                    .then(argument("height", IntegerArgumentType.integer(1, CONFIG.maxSize))
-                                            .then(argument("mode", StringArgumentType.word()).suggests(new DitherModeSuggestionProvider())
-                                                    .then(argument("path", StringArgumentType.greedyString())
-                                                            .executes(this::createMapFromFolder))
-                                            )
-                                    )
-                            )
-                            .then(argument("mode", StringArgumentType.word()).suggests(new DitherModeSuggestionProvider())
-                                    .then(argument("path", StringArgumentType.greedyString())
-                                            .executes(this::createMapFromFolder)
-                                    )
-                            )
-                    )
-                    .then(literal("preview")
-                            .requires(FabricPermissionBridge.require(id("preview"), true))
-                            .then(argument("path", StringArgumentType.greedyString())
-                                    .executes(this::openPreview)
-                            )
-                    )
-            );
-        });
-
-        ServerLifecycleEvents.SERVER_STARTED.register((s) -> CardboardWarning.checkAndAnnounce());
-    }
-
-    private static Identifier id(String use) {
-        return Identifier.fromNamespaceAndPath("image2map", use);
-    }
-
-    private int openPreview(CommandContext<CommandSourceStack> context) throws CommandSyntaxException {
-        CommandSourceStack source = context.getSource();
-        String input = StringArgumentType.getString(context, "path");
-
-        source.sendSuccess(() -> Component.literal("Getting image..."), false);
-
-        getImage(input).orTimeout(30, TimeUnit.SECONDS).handleAsync((image, ex) -> {
-            if (ex instanceof TimeoutException) {
-                source.sendSuccess(() -> Component.literal("Downloading or reading of the image took too long!"), false);
-                return null;
-            } else if (ex != null) {
-                if (ex instanceof RuntimeException ru && ru.getCause() != null) {
-                    ex = ru.getCause();
-                }
-
-                Throwable finalEx = ex;
-                source.sendSuccess(() -> Component.literal("The image isn't valid (hover for more info)!")
-                        .setStyle(Style.EMPTY.withColor(ChatFormatting.RED).withHoverEvent(new HoverEvent.ShowText(Component.literal(finalEx.getMessage())))), false);
-                return null;
-            }
-
-            if (image == null) {
-                source.sendSuccess(() -> Component.literal("That doesn't seem to be a valid image (unknown reason)!"), false);
-                return null;
-            }
-
-            if (SguiUtils.getCurrentGui(source.getPlayer()) instanceof PreviewGui previewGui) {
-                previewGui.close();
-            }
-
-            var width = image.getWidth();
-            var height = image.getHeight();
-
-            if (height > CONFIG.maxSize || width > CONFIG.maxSize) {
-                var scaleDown = Math.min(CONFIG.maxSize / (double) height, CONFIG.maxSize / (double) width);
-                width = (int) (width * scaleDown);
-                height = (int) (height * scaleDown);
-            }
-
-            new PreviewGui(context.getSource().getPlayer(), image, input, DitherMode.NONE, width, height);
-
-            return null;
-        }, source.getServer());
-
-        return 1;
-    }
-
-    class DitherModeSuggestionProvider implements SuggestionProvider<CommandSourceStack> {
-
-        @Override
-        public CompletableFuture<Suggestions> getSuggestions(CommandContext<CommandSourceStack> context,
-                                                             SuggestionsBuilder builder) throws CommandSyntaxException {
-            builder.suggest("none");
-            builder.suggest("dither");
-            return builder.buildFuture();
-        }
-
+        UploadPayloads.register();
+        TASKS.register();
+        ImageCommands.register();
+        ServerLifecycleEvents.SERVER_STARTED.register(server -> CardboardWarning.checkAndAnnounce());
     }
 
     public enum DitherMode {
-        NONE,
-        FLOYD;
-
-        public static DitherMode fromString(String string) {
-            if (string.equalsIgnoreCase("NONE"))
-                return DitherMode.NONE;
-            else if (string.equalsIgnoreCase("DITHER") || string.equalsIgnoreCase("FLOYD"))
-                return DitherMode.FLOYD;
-            throw new IllegalArgumentException("invalid dither mode");
+        NONE, FLOYD;
+        public static DitherMode fromString(String value) {
+            if (value.equalsIgnoreCase("none")) return NONE;
+            if (value.equalsIgnoreCase("dither") || value.equalsIgnoreCase("floyd")) return FLOYD;
+            throw new IllegalArgumentException("Invalid dither mode: " + value);
         }
-    }
-
-    private CompletableFuture<BufferedImage> getImage(String input) {
-        return CompletableFuture.supplyAsync(() -> {
-            try {
-                if (isValid(input)) {
-                    try(var client = HttpClient.newHttpClient()) {
-                        var req = HttpRequest.newBuilder().GET().uri(URI.create(input)).timeout(Duration.ofSeconds(30))
-                                .setHeader("User-Agent", "Image2Map mod").build();
-
-                        var stream = client.send(req, HttpResponse.BodyHandlers.ofInputStream());
-                        return ImageIO.read(stream.body());
-                    }
-                } else if (CONFIG.allowLocalFiles) {
-                    var path = FabricLoader.getInstance().getGameDir().resolve(input);
-                    if (Files.exists(path)) {
-                        return ImageIO.read(Files.newInputStream(path));
-                    }
-                    return null;
-                } else {
-                    return null;
-                }
-            } catch (Throwable e) {
-                LOGGER.warn("Failed to load the image!", e);
-                throw new RuntimeException(e);
-            }
-        });
-    }
-
-    private List<BufferedImage> getImageFromFolder(String input) {
-        if (CONFIG.allowLocalFiles) {
-            try {
-                var arr = new ArrayList<BufferedImage>();
-                var path = FabricLoader.getInstance().getGameDir().resolve(input);
-                if (Files.exists(path) && Files.isDirectory(path)) {
-                    Files.walkFileTree(path, new FileVisitor<Path>() {
-                        @Override
-                        public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) throws IOException {
-                            return FileVisitResult.CONTINUE;
-                        }
-
-                        @Override
-                        public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
-                            try {
-                                var x = ImageIO.read(Files.newInputStream(file));
-                                if (x != null) {
-                                    arr.add(x);
-                                }
-                            }catch (Throwable e) {
-                                e.printStackTrace();
-                            }
-
-                            return FileVisitResult.CONTINUE;
-                        }
-
-                        @Override
-                        public FileVisitResult visitFileFailed(Path file, IOException exc) throws IOException {
-                            return FileVisitResult.CONTINUE;
-                        }
-
-                        @Override
-                        public FileVisitResult postVisitDirectory(Path dir, IOException exc) throws IOException {
-                            return FileVisitResult.CONTINUE;
-                        }
-                    });
-                }
-                return arr;
-            } catch (Throwable e) {
-                throw new RuntimeException(e);
-            }
-        }
-
-        return List.of();
-    }
-
-    private int createMap(CommandContext<CommandSourceStack> context) throws CommandSyntaxException {
-        CommandSourceStack source = context.getSource();
-
-        Player player = source.getPlayer();
-        DitherMode mode;
-        String modeStr = StringArgumentType.getString(context, "mode");
-        try {
-            mode = DitherMode.fromString(modeStr);
-        } catch (IllegalArgumentException e) {
-            throw new SimpleCommandExceptionType(() -> "Invalid dither mode '" + modeStr + "'").create();
-        }
-
-        String input = StringArgumentType.getString(context, "path");
-
-        source.sendSuccess(() -> Component.literal("Getting image..."), false);
-
-        getImage(input).orTimeout(20, TimeUnit.SECONDS).handleAsync((image, ex) -> {
-            if (ex instanceof TimeoutException) {
-                source.sendSuccess(() -> Component.literal("Downloading or reading of the image took too long!"), false);
-                return null;
-            } else if (ex != null) {
-                if (ex instanceof RuntimeException ru && ru.getCause() != null) {
-                    ex = ru.getCause();
-                }
-
-                Throwable finalEx = ex;
-                source.sendSuccess(() -> Component.literal("The image isn't valid (hover for more info)!")
-                        .setStyle(Style.EMPTY.withColor(ChatFormatting.RED).withHoverEvent(new HoverEvent.ShowText(Component.literal(finalEx.getMessage())))), false);
-                return null;
-            }
-
-            if (image == null) {
-                source.sendSuccess(() -> Component.literal("That doesn't seem to be a valid image (unknown reason)!"), false);
-                return null;
-            }
-
-            int width;
-            int height;
-
-            try {
-                width = IntegerArgumentType.getInteger(context, "width");
-                height = IntegerArgumentType.getInteger(context, "height");
-
-                if (height > CONFIG.maxSize || width > CONFIG.maxSize) {
-                    int finalHeight = height;
-                    int finalWidth = width;
-                    source.sendSuccess(() -> Component.literal("Map size exceeds maximum allowed (" + CONFIG.maxSize + "x" + CONFIG.maxSize + "), was " + finalWidth + "x" + finalHeight), false);
-                    return null;
-                }
-            } catch (Throwable e) {
-                width = image.getWidth();
-                height = image.getHeight();
-
-                if (height > CONFIG.maxSize || width > CONFIG.maxSize) {
-                    var scaleDown = Math.min(CONFIG.maxSize / (double) height, CONFIG.maxSize / (double) width);
-                    width = (int) (width * scaleDown);
-                    height = (int) (height * scaleDown);
-                }
-            }
-
-            int finalHeight = height;
-            int finalWidth = width;
-
-            source.sendSuccess(() -> Component.literal("Converting into maps..."), false);
-
-            CompletableFuture.supplyAsync(() -> MapRenderer.render(image, mode, finalWidth, finalHeight)).thenAcceptAsync(mapImage -> {
-                var items = MapRenderer.toVanillaItems(mapImage, source.getLevel(), input);
-                giveToPlayer(player, items, input, finalWidth, finalHeight);
-                source.sendSuccess(() -> Component.literal("Done!"), false);
-            }, source.getServer());
-            return null;
-        }, source.getServer());
-
-        return 1;
-    }
-
-    private int createMapFromFolder(CommandContext<CommandSourceStack> context) throws CommandSyntaxException {
-        CommandSourceStack source = context.getSource();
-
-        Player player = source.getPlayer();
-        DitherMode mode;
-        String modeStr = StringArgumentType.getString(context, "mode");
-        try {
-            mode = DitherMode.fromString(modeStr);
-        } catch (IllegalArgumentException e) {
-            throw new SimpleCommandExceptionType(() -> "Invalid dither mode '" + modeStr + "'").create();
-        }
-
-        String input = StringArgumentType.getString(context, "path");
-
-        source.sendSuccess(() -> Component.literal("Getting image..."), false);
-
-        var list = new ArrayList<ItemStackTemplate>();
-
-        for (var image : getImageFromFolder(input)) {
-            int width;
-            int height;
-
-            try {
-                width = IntegerArgumentType.getInteger(context, "width");
-                height = IntegerArgumentType.getInteger(context, "height");
-            } catch (Throwable e) {
-                width = image.getWidth();
-                height = image.getHeight();
-            }
-
-            int finalHeight = height;
-            int finalWidth = width;
-
-            if (finalHeight > CONFIG.maxSize || finalWidth > CONFIG.maxSize) {
-                throw new SimpleCommandExceptionType(() -> "Map size exceeds maximum allowed (1024x1024), was " + finalWidth + "x" + finalHeight).create();
-            }
-            source.sendSuccess(() -> Component.literal("Converting into maps..."), false);
-
-            var mapImage = MapRenderer.render(image, mode, finalWidth, finalHeight);
-            var items = MapRenderer.toVanillaItems(mapImage, source.getLevel(), input);
-            list.add(toSingleStack(items, input, width, height));
-        }
-        var bundle = new ItemStack(Items.BUNDLE);
-        bundle.set(DataComponents.BUNDLE_CONTENTS, new BundleContents(list));
-        player.addItem(bundle);
-
-        return 1;
     }
 
     public static void giveToPlayer(Player player, List<ItemStackTemplate> items, String input, int width, int height) {
@@ -547,12 +199,4 @@ public class Image2Map implements ModInitializer {
         return false;
     }
 
-    private static boolean isValid(String url) {
-        try {
-            new URL(url).toURI();
-            return true;
-        } catch (Exception e) {
-            return false;
-        }
-    }
 }

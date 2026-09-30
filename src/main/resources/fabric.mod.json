@@ -22,6 +22,9 @@
     "main": [
       "space.essem.image2map.Image2Map"
     ],
+    "client": [
+      "space.essem.image2map.client.Image2MapClient"
+    ],
     "preLaunch": [
       "space.essem.image2map.CardboardWarning",
       "space.essem.image2map.ImageIoBootstrap"
